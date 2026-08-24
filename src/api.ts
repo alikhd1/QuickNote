@@ -11,7 +11,9 @@ import type {
   AttachResult,
   GroupView,
   ImportReport,
+  NoteContents,
   NoteMeta,
+  SaveOutcome,
   SearchHit,
   Startup,
 } from "./types";
@@ -29,10 +31,24 @@ export const startupStatus = () => invoke<Startup>("startup_status");
 
 export const listTree = () => invoke<GroupView[]>("list_tree");
 
-export const readNote = (path: string) => invoke<string>("read_note", { path });
+export const readNote = (path: string) => invoke<NoteContents>("read_note", { path });
 
-export const saveNote = (path: string, content: string) =>
-  invoke<NoteMeta>("save_note", { path, content });
+/**
+ * Save a note. `expected` is the modified time and size the UI last saw; if the file on
+ * disk no longer matches, nothing is written and a conflict comes back instead.
+ * Omitting it forces the write, which is how "keep my version" is resolved.
+ */
+export const saveNote = (
+  path: string,
+  content: string,
+  expected?: { modified: number; size: number },
+) =>
+  invoke<SaveOutcome>("save_note", {
+    path,
+    content,
+    expectedModified: expected?.modified,
+    expectedSize: expected?.size,
+  });
 
 export const createNote = (group: string, title: string) =>
   invoke<NoteMeta>("create_note", { group, title });

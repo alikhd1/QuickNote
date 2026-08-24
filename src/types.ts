@@ -58,7 +58,27 @@ export interface ImportReport {
   missing: string[];
 }
 
-export type SaveStatus = "ready" | "unsaved" | "saving" | "saved" | "error";
+/** `store::NoteContents` — a note's text plus the baseline it was read at. */
+export interface NoteContents {
+  meta: NoteMeta;
+  content: string;
+}
+
+/**
+ * `store::SaveOutcome`. A conflict means the file changed outside QuickNote and
+ * nothing was written, so the user has to choose which version survives.
+ */
+export type SaveOutcome =
+  | { status: "saved"; meta: NoteMeta }
+  | { status: "conflict"; modified: number; size: number };
+
+export type SaveStatus =
+  | "ready"
+  | "unsaved"
+  | "saving"
+  | "saved"
+  | "error"
+  | "conflict";
 
 /** What to do with files chosen in the attach dialog. */
 export type AttachMode = "copy" | "link" | "cancel";

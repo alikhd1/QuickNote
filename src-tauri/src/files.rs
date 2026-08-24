@@ -283,6 +283,19 @@ mod tests {
     use super::*;
     use crate::store;
 
+    /// Force-write a note; these tests are not about the conflict guard.
+    fn put(root: &Path, rel: &str, content: &str) {
+        match store::save_note(root, rel, content, None).unwrap() {
+            store::SaveOutcome::Saved { .. } => {}
+            store::SaveOutcome::Conflict { .. } => panic!("unexpected conflict"),
+        }
+    }
+
+    /// The text of a note, discarding the baseline.
+    fn text(root: &Path, rel: &str) -> String {
+        store::read_note(root, rel).unwrap().content
+    }
+
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("quicknote-files-{name}"));
         let _ = fs::remove_dir_all(&dir);
@@ -406,13 +419,13 @@ mod tests {
             "# Linked\n\nSee [the chart]({}) and [the site](https://example.com).\n",
             source.display()
         );
-        store::save_note(&root, &note.path, &body).unwrap();
+        put(&root, &note.path, &body);
 
         let report = import_links(&root, &note.path).unwrap();
         assert_eq!(report.copied, 1);
         assert!(report.missing.is_empty());
 
-        let rewritten = store::read_note(&root, &note.path).unwrap();
+        let rewritten = text(&root, &note.path);
         assert!(rewritten.contains("[the chart](_files/chart.png)"));
         // An ordinary web link is left exactly as it was.
         assert!(rewritten.contains("[the site](https://example.com)"));
@@ -423,19 +436,17 @@ mod tests {
     fn import_reports_links_it_cannot_reach() {
         let (root, _) = fixture("import-missing");
         let note = store::create_note(&root, "Work", "Broken").unwrap();
-        store::save_note(
+        put(
             &root,
             &note.path,
             "# Broken\n\n[missing](C:\\nowhere\\ghost.pdf)\n",
-        )
-        .unwrap();
+        );
 
         let report = import_links(&root, &note.path).unwrap();
         assert_eq!(report.copied, 0);
         assert_eq!(report.missing.len(), 1);
         // The note is left untouched so the original path stays visible.
-        assert!(store::read_note(&root, &note.path)
-            .unwrap()
+        assert!(text(&root, &note.path)
             .contains("C:\\nowhere\\ghost.pdf"));
     }
 
@@ -444,11 +455,11 @@ mod tests {
         let (root, _) = fixture("import-noop");
         let note = store::create_note(&root, "Work", "Plain").unwrap();
         let body = "# Plain\n\nJust [a link](https://example.com) and text.\n";
-        store::save_note(&root, &note.path, body).unwrap();
+        put(&root, &note.path, body);
 
         let report = import_links(&root, &note.path).unwrap();
         assert_eq!(report.copied, 0);
-        assert_eq!(store::read_note(&root, &note.path).unwrap(), body);
+        assert_eq!(text(&root, &note.path), body);
     }
 
     #[test]
@@ -462,12 +473,11 @@ mod tests {
             "# Unicode\n\n\u{0633}\u{0644}\u{0627}\u{0645} \u{062F}\u{0646}\u{06CC}\u{0627} [f]({})\n",
             source.display()
         );
-        store::save_note(&root, &note.path, &body).unwrap();
+        put(&root, &note.path, &body);
 
         let report = import_links(&root, &note.path).unwrap();
         assert_eq!(report.copied, 1);
-        assert!(store::read_note(&root, &note.path)
-            .unwrap()
+        assert!(text(&root, &note.path)
             .contains("\u{062F}\u{0646}\u{06CC}\u{0627}"));
     }
 

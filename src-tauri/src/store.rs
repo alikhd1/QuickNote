@@ -39,6 +39,31 @@ pub struct Group {
     pub notes: Vec<NoteMeta>,
 }
 
+/// A note's content together with the state of the file it came from.
+///
+/// The two travel together so the UI always holds a baseline that matches the text it
+/// is showing, which is what makes the conflict check below trustworthy.
+#[derive(Serialize)]
+pub struct NoteContents {
+    pub meta: NoteMeta,
+    pub content: String,
+}
+
+/// What the file looked like when the UI last saw it.
+#[derive(Clone, Copy)]
+pub struct Baseline {
+    pub modified: u64,
+    pub size: u64,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum SaveOutcome {
+    Saved { meta: NoteMeta },
+    /// The file changed underneath us. Nothing was written.
+    Conflict { modified: u64, size: u64 },
+}
+
 #[derive(Serialize)]
 pub struct SearchHit {
     pub path: String,
@@ -150,20 +175,53 @@ pub fn meta_for(root: &Path, full: &Path) -> Result<NoteMeta, String> {
     })
 }
 
-pub fn read_note(root: &Path, rel: &str) -> Result<String, String> {
+/// Read a note along with the baseline the caller should hand back when saving it.
+///
+/// The metadata is taken *before* the content, and the ordering is load-bearing. Read
+/// first and the baseline would describe a file newer than the text we returned, so a
+/// later save would sail through the conflict check and overwrite whatever arrived in
+/// between. Taking it first can only err the safe way: a false conflict, which the user
+/// can resolve, rather than a silent loss.
+pub fn read_note(root: &Path, rel: &str) -> Result<NoteContents, String> {
     let full = paths::resolve(root, rel)?;
-    fs::read_to_string(&full).map_err(|e| format!("cannot read note: {e}"))
+    let meta = meta_for(root, &full)?;
+    let content = fs::read_to_string(&full).map_err(|e| format!("cannot read note: {e}"))?;
+    Ok(NoteContents { meta, content })
 }
 
 // ---------------------------------------------------------------- writing
 
-pub fn save_note(root: &Path, rel: &str, content: &str) -> Result<NoteMeta, String> {
+/// Write a note, refusing to clobber a change made outside the app.
+///
+/// `expected` is what the UI believed the file to be. If the file on disk no longer
+/// matches, nothing is written and the caller is told, because the alternative is
+/// silently destroying whatever someone typed in Notepad. Passing `None` forces the
+/// write, which is how "keep my version" is implemented.
+///
+/// Modification time alone is not enough: FAT32 records it to a two-second resolution,
+/// so an edit made moments after ours can carry an identical timestamp. Comparing the
+/// size as well catches the common case of that window being hit.
+pub fn save_note(
+    root: &Path,
+    rel: &str,
+    content: &str,
+    expected: Option<Baseline>,
+) -> Result<SaveOutcome, String> {
     let full = paths::resolve(root, rel)?;
-    if !full.exists() {
-        return Err("note no longer exists".into());
+    let fs_meta = fs::metadata(&full).map_err(|_| "note no longer exists".to_string())?;
+
+    if let Some(expected) = expected {
+        let modified = modified_ms(&fs_meta);
+        let size = fs_meta.len();
+        if modified != expected.modified || size != expected.size {
+            return Ok(SaveOutcome::Conflict { modified, size });
+        }
     }
+
     atomic::write(&full, content.as_bytes()).map_err(|e| format!("cannot save note: {e}"))?;
-    meta_for(root, &full)
+    Ok(SaveOutcome::Saved {
+        meta: meta_for(root, &full)?,
+    })
 }
 
 pub fn create_note(root: &Path, group: &str, title: &str) -> Result<NoteMeta, String> {
@@ -439,6 +497,19 @@ fn find_snippet(body: &str, needle: &[char]) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// Force-write, for the many tests that are not about the conflict guard.
+    fn put(root: &Path, rel: &str, content: &str) -> Result<NoteMeta, String> {
+        match save_note(root, rel, content, None)? {
+            SaveOutcome::Saved { meta } => Ok(meta),
+            SaveOutcome::Conflict { .. } => Err("unexpected conflict".into()),
+        }
+    }
+
+    /// The text of a note, discarding the baseline.
+    fn text(root: &Path, rel: &str) -> String {
+        read_note(root, rel).unwrap().content
+    }
+
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("quicknote-store-{name}"));
         let _ = fs::remove_dir_all(&dir);
@@ -470,9 +541,9 @@ mod tests {
         assert_eq!(note.path, "Work/project-alpha.md");
         assert_eq!(note.title, "Project Alpha");
 
-        save_note(&root, &note.path, "# Project Alpha\n\nbody text").unwrap();
+        put(&root, &note.path, "# Project Alpha\n\nbody text").unwrap();
         assert_eq!(
-            read_note(&root, &note.path).unwrap(),
+            text(&root, &note.path),
             "# Project Alpha\n\nbody text"
         );
     }
@@ -541,7 +612,87 @@ mod tests {
     fn saving_a_missing_note_errors_rather_than_resurrecting_it() {
         let root = scratch("missing");
         ensure_layout(&root).unwrap();
-        assert!(save_note(&root, "Work/ghost.md", "body").is_err());
+        assert!(put(&root, "Work/ghost.md", "body").is_err());
+    }
+
+    /// The baseline the UI would be holding for an open note.
+    fn baseline_of(root: &Path, rel: &str) -> Baseline {
+        let opened = read_note(root, rel).unwrap();
+        Baseline {
+            modified: opened.meta.modified,
+            size: opened.meta.size,
+        }
+    }
+
+    #[test]
+    fn save_refuses_to_clobber_an_edit_made_outside_the_app() {
+        let root = scratch("conflict");
+        ensure_layout(&root).unwrap();
+        let note = create_note(&root, "Work", "Shared").unwrap();
+        let baseline = baseline_of(&root, &note.path);
+
+        // Someone edits the same file in another program.
+        let full = root.join("Work").join("shared.md");
+        fs::write(&full, "# Shared\n\nedited elsewhere, and rather longer than before").unwrap();
+
+        let outcome = save_note(&root, &note.path, "# Shared\n\nstale copy", Some(baseline)).unwrap();
+        assert!(
+            matches!(outcome, SaveOutcome::Conflict { .. }),
+            "the external edit was silently overwritten"
+        );
+
+        // Nothing was written: the other program's version is intact.
+        assert!(text(&root, &note.path).contains("edited elsewhere"));
+    }
+
+    #[test]
+    fn saving_without_a_baseline_forces_the_write() {
+        let root = scratch("conflict-force");
+        ensure_layout(&root).unwrap();
+        let note = create_note(&root, "Work", "Shared").unwrap();
+
+        fs::write(root.join("Work").join("shared.md"), "changed underneath").unwrap();
+
+        // This is how "keep my version" resolves a conflict.
+        let outcome = save_note(&root, &note.path, "mine wins", None).unwrap();
+        assert!(matches!(outcome, SaveOutcome::Saved { .. }));
+        assert_eq!(text(&root, &note.path), "mine wins");
+    }
+
+    #[test]
+    fn saving_with_a_matching_baseline_succeeds() {
+        let root = scratch("conflict-match");
+        ensure_layout(&root).unwrap();
+        let note = create_note(&root, "Work", "Solo").unwrap();
+        let baseline = baseline_of(&root, &note.path);
+
+        let outcome = save_note(&root, &note.path, "# Solo\n\nedited in app", Some(baseline)).unwrap();
+        assert!(matches!(outcome, SaveOutcome::Saved { .. }));
+    }
+
+    #[test]
+    fn consecutive_saves_do_not_conflict_with_themselves() {
+        // Every save returns fresh metadata, and the caller uses it as the next
+        // baseline. If that handover were wrong, typing would conflict with itself
+        // after the very first keystroke.
+        let root = scratch("conflict-chain");
+        ensure_layout(&root).unwrap();
+        let note = create_note(&root, "Work", "Typing").unwrap();
+        let mut baseline = baseline_of(&root, &note.path);
+
+        for n in 1..=5 {
+            let body = format!("# Typing\n\nrevision {n}");
+            match save_note(&root, &note.path, &body, Some(baseline)).unwrap() {
+                SaveOutcome::Saved { meta } => {
+                    baseline = Baseline {
+                        modified: meta.modified,
+                        size: meta.size,
+                    };
+                }
+                SaveOutcome::Conflict { .. } => panic!("save {n} conflicted with itself"),
+            }
+        }
+        assert_eq!(text(&root, &note.path), "# Typing\n\nrevision 5");
     }
 
     #[test]
@@ -549,7 +700,7 @@ mod tests {
         let root = scratch("search");
         ensure_layout(&root).unwrap();
         let note = create_note(&root, "Work", "Meeting").unwrap();
-        save_note(
+        put(
             &root,
             &note.path,
             "# Meeting\n\nDiscussed the quarterly budget today.",
@@ -566,7 +717,7 @@ mod tests {
         let root = scratch("search-utf8");
         ensure_layout(&root).unwrap();
         let note = create_note(&root, "Work", "Unicode").unwrap();
-        save_note(
+        put(
             &root,
             &note.path,
             "# Unicode\n\nsalaam \u{062F}\u{0646}\u{06CC}\u{0627} then more text follows.",
@@ -581,7 +732,7 @@ mod tests {
         let root = scratch("search-miss");
         ensure_layout(&root).unwrap();
         let note = create_note(&root, "Work", "Nothing").unwrap();
-        save_note(&root, &note.path, "# Nothing\n\nplain body").unwrap();
+        put(&root, &note.path, "# Nothing\n\nplain body").unwrap();
         assert!(search(&root, "zzzznotpresent").unwrap().is_empty());
     }
 
@@ -597,6 +748,6 @@ mod tests {
         let root = scratch("traversal");
         ensure_layout(&root).unwrap();
         assert!(read_note(&root, "../../secrets.md").is_err());
-        assert!(save_note(&root, "..\\escape.md", "x").is_err());
+        assert!(put(&root, "..\\escape.md", "x").is_err());
     }
 }

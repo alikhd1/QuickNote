@@ -28,6 +28,10 @@ export interface AutoSave {
   isDirty: () => boolean;
   /** Adopt content that came from disk rather than from the user. */
   reset: () => void;
+  /** The file changed outside the app; saving is paused until this is resolved. */
+  hasConflict: boolean;
+  /** Resolve a conflict by overwriting whatever is on disk. */
+  keepMine: () => Promise<void>;
 }
 
 /**
@@ -45,6 +49,9 @@ export function useAutoSave(params: Params): AutoSave {
   useEffect(() => {
     paramsRef.current = params;
   });
+
+  const [hasConflict, setHasConflict] = useState(false);
+  const conflictRef = useRef(false);
 
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -64,6 +71,14 @@ export function useAutoSave(params: Params): AutoSave {
 
   const touch = useCallback(() => {
     dirtyRef.current = true;
+
+    // While a conflict is unresolved, keep the user's typing in memory but do not
+    // write: every attempt would hit the same conflict and the banner would flicker.
+    if (conflictRef.current) {
+      setStatus("conflict");
+      return;
+    }
+
     setStatus("unsaved");
     clearTimer();
     timerRef.current = window.setTimeout(() => {
@@ -71,42 +86,69 @@ export function useAutoSave(params: Params): AutoSave {
     }, SAVE_DEBOUNCE_MS);
   }, [clearTimer]);
 
-  const flush = useCallback(async () => {
-    clearTimer();
-    const { note, content, onMeta, onStructureChanged, onError } = paramsRef.current;
-    if (!note || !dirtyRef.current || savingRef.current) return;
+  /**
+   * `force` skips the conflict check, overwriting whatever is on disk. It is only ever
+   * true when the user has explicitly chosen to keep their version.
+   */
+  const runSave = useCallback(
+    async (force: boolean) => {
+      clearTimer();
+      const { note, content, onMeta, onStructureChanged, onError } = paramsRef.current;
+      if (!note || !dirtyRef.current || savingRef.current) return;
+      if (conflictRef.current && !force) return;
 
-    const path = note.path;
-    const snapshot = content;
-    savingRef.current = true;
-    setStatus("saving");
+      const path = note.path;
+      const snapshot = content;
+      savingRef.current = true;
+      setStatus("saving");
 
-    try {
-      const meta = await api.saveNote(path, snapshot);
-      savingRef.current = false;
+      try {
+        const outcome = await api.saveNote(
+          path,
+          snapshot,
+          force ? undefined : { modified: note.modified, size: note.size },
+        );
+        savingRef.current = false;
 
-      if (paramsRef.current.content === snapshot) {
-        dirtyRef.current = false;
-        setStatus("saved");
-      } else {
-        // The user kept typing while the write was in flight.
-        touch();
+        if (outcome.status === "conflict") {
+          // Nothing was written. The edit stays pending so "keep mine" can still use it.
+          conflictRef.current = true;
+          setHasConflict(true);
+          setStatus("conflict");
+          return;
+        }
+
+        conflictRef.current = false;
+        setHasConflict(false);
+
+        if (paramsRef.current.content === snapshot) {
+          dirtyRef.current = false;
+          setStatus("saved");
+        } else {
+          // The user kept typing while the write was in flight.
+          touch();
+        }
+
+        const openNow = paramsRef.current.note;
+        if (openNow && openNow.path === path) {
+          const titleChanged = outcome.meta.title !== openNow.title;
+          // The fresh metadata becomes the baseline for the next save.
+          onMeta(outcome.meta);
+          if (titleChanged) await onStructureChanged();
+        }
+      } catch (err) {
+        savingRef.current = false;
+        // Keep the change pending so the next attempt retries it.
+        dirtyRef.current = true;
+        setStatus("error");
+        onError(`Could not save this note: ${api.errorText(err)}`);
       }
+    },
+    [clearTimer, touch],
+  );
 
-      const openNow = paramsRef.current.note;
-      if (openNow && openNow.path === path) {
-        const titleChanged = meta.title !== openNow.title;
-        onMeta(meta);
-        if (titleChanged) await onStructureChanged();
-      }
-    } catch (err) {
-      savingRef.current = false;
-      // Keep the change pending so the next attempt retries it.
-      dirtyRef.current = true;
-      setStatus("error");
-      onError(`Could not save this note: ${api.errorText(err)}`);
-    }
-  }, [clearTimer, touch]);
+  const flush = useCallback(() => runSave(false), [runSave]);
+  const keepMine = useCallback(() => runSave(true), [runSave]);
 
   useEffect(() => {
     flushRef.current = flush;
@@ -119,7 +161,7 @@ export function useAutoSave(params: Params): AutoSave {
   const settle = useCallback(async () => {
     await flushRef.current();
     const { note, content, onMeta, onStructureChanged, onError } = paramsRef.current;
-    if (!note || dirtyRef.current) return;
+    if (!note || dirtyRef.current || conflictRef.current) return;
 
     const wanted = titleOf(content);
     if (!wanted || wanted === note.title) return;
@@ -142,6 +184,8 @@ export function useAutoSave(params: Params): AutoSave {
     clearTimer();
     dirtyRef.current = false;
     savingRef.current = false;
+    conflictRef.current = false;
+    setHasConflict(false);
     setStatus("ready");
   }, [clearTimer]);
 
@@ -149,5 +193,5 @@ export function useAutoSave(params: Params): AutoSave {
 
   useEffect(() => clearTimer, [clearTimer]);
 
-  return { status, touch, flush, flushAndSettle, isDirty, reset };
+  return { status, touch, flush, flushAndSettle, isDirty, reset, hasConflict, keepMine };
 }

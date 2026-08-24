@@ -56,6 +56,35 @@ Writes are atomic (temp file, flushed to the device, then renamed over the origi
 pulling the drive mid-save leaves either the old file or the new one, never a
 half-written one. Attachments are copied the same way.
 
+### Editing a note outside QuickNote
+
+QuickNote does not watch the filesystem, so a note you change in another editor while
+QuickNote has it open will not update on screen by itself.
+
+What it will not do is overwrite you. Every save carries the modified time and size the
+app last saw; if the file on disk no longer matches, **nothing is written**. A bar
+appears offering **Keep mine** or **Reload from disk**, and auto-save pauses until you
+choose — so both versions still exist while you decide.
+
+The check compares size as well as timestamp, because FAT32 records modification times
+to a two-second resolution and an edit made moments after a save can otherwise carry an
+identical timestamp.
+
+To pick up notes or attachments added externally, use any action that rebuilds the
+sidebar — creating, deleting, moving, or attaching — or reopen the app.
+
+### If the drive is unplugged while the app is open
+
+Saves fail loudly rather than silently: the status turns red, a banner explains, and the
+change stays pending in memory so the next attempt retries it. Plug the drive back in on
+the same letter and the next keystroke saves normally.
+
+One caveat: the notes folder is located once, at startup. If the drive returns as a
+different letter, the app keeps writing to the old path for the rest of the session —
+close QuickNote and reopen it from the drive to pick up the new location. Note also that
+the executable is itself running from the drive, so unplugging mid-session is worth
+avoiding regardless of what the app does.
+
 ### Attaching files
 
 Three ways to get a file in:
@@ -113,10 +142,15 @@ than running. Links are handled by type: web links open in your browser, attachm
 file links open in the relevant application, and anything else — `javascript:` and
 friends — is left as literal text rather than becoming a link.
 
-Images are **not** embedded in the preview. `![chart](_files/chart.png)` renders as a
-link that opens the image in your usual viewer. Embedding would mean enabling Tauri's
-asset protocol and loosening the page's content-security policy, which did not seem a
-fair trade for inline thumbnails.
+Attached images render inline. `![chart](_files/chart.png)` shows the picture;
+`[chart](_files/chart.png)` — the same target without the `!` — stays a link, which is
+ordinary Markdown and leaves the choice with you. Clicking an inline image still opens
+the full-size file in your usual viewer.
+
+This uses Tauri's asset protocol, granted at runtime to the notes folder alone rather
+than configured with a blanket scope, and the content-security policy widens `img-src`
+only. `script-src` stays `'self'`, so images may load but note content still cannot
+execute.
 
 ---
 

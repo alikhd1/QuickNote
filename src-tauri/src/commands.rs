@@ -9,7 +9,7 @@ use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::files::{self, FileMeta, ImportReport};
-use crate::store::{self, Group, NoteMeta, SearchHit};
+use crate::store::{self, Baseline, Group, NoteContents, NoteMeta, SaveOutcome, SearchHit};
 use crate::AppState;
 
 #[derive(Serialize)]
@@ -57,17 +57,28 @@ pub fn list_tree(state: State<AppState>) -> Result<Vec<GroupView>, String> {
 }
 
 #[tauri::command]
-pub fn read_note(state: State<AppState>, path: String) -> Result<String, String> {
+pub fn read_note(state: State<AppState>, path: String) -> Result<NoteContents, String> {
     store::read_note(&state.root, &path)
 }
 
+/// Save a note, guarding against an edit made outside the app.
+///
+/// The UI passes back the modified time and size it last saw. Both must be present for
+/// the guard to run; omitting them forces the write, which is how "keep my version"
+/// resolves a conflict.
 #[tauri::command]
 pub fn save_note(
     state: State<AppState>,
     path: String,
     content: String,
-) -> Result<NoteMeta, String> {
-    store::save_note(&state.root, &path, &content)
+    expected_modified: Option<u64>,
+    expected_size: Option<u64>,
+) -> Result<SaveOutcome, String> {
+    let expected = match (expected_modified, expected_size) {
+        (Some(modified), Some(size)) => Some(Baseline { modified, size }),
+        _ => None,
+    };
+    store::save_note(&state.root, &path, &content, expected)
 }
 
 #[tauri::command]

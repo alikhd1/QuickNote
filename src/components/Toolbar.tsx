@@ -6,6 +6,7 @@ const STATUS_TEXT: Record<SaveStatus, string> = {
   saving: "Saving",
   saved: "Saved",
   error: "Save failed",
+  conflict: "Changed on disk",
 };
 
 const STATUS_CLASS: Record<SaveStatus, string> = {
@@ -14,6 +15,7 @@ const STATUS_CLASS: Record<SaveStatus, string> = {
   saving: "status",
   saved: "status ok",
   error: "status error",
+  conflict: "status error",
 };
 
 interface ToolbarProps {

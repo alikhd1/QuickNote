@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 import * as api from "./api";
-import { hasExternalLinks, titleOf } from "./markdown";
+import { hasExternalLinks } from "./markdown";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useDialogs } from "./components/Dialogs";
 import { Preview } from "./components/Preview";
@@ -12,14 +12,6 @@ import { Toolbar } from "./components/Toolbar";
 import type { FileMeta, GroupView, NoteMeta, SearchHit, Startup } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 200;
-
-function findMeta(tree: GroupView[], path: string): NoteMeta | null {
-  for (const group of tree) {
-    const found = group.notes.find((note) => note.path === path);
-    if (found) return found;
-  }
-  return null;
-}
 
 function firstNote(tree: GroupView[]): NoteMeta | null {
   for (const group of tree) {
@@ -56,7 +48,8 @@ export default function App() {
     }
   }, [fail]);
 
-  const { status, touch, flush, flushAndSettle, isDirty, reset } = useAutoSave({
+  const { status, touch, flush, flushAndSettle, isDirty, reset, hasConflict, keepMine } =
+    useAutoSave({
     note: current,
     content,
     onMeta: setCurrent,
@@ -66,11 +59,12 @@ export default function App() {
 
   // ---------------------------------------------------------------- notes
 
+  // Content and baseline arrive together, so what the editor shows and what the next
+  // save compares against can never drift apart.
   const loadNote = useCallback(
-    async (meta: NoteMeta) => {
-      const text = await api.readNote(meta.path);
-      // A note opened by path alone (not found in the tree) arrives without a title.
-      setCurrent(meta.title ? meta : { ...meta, title: titleOf(text) });
+    async (path: string) => {
+      const { meta, content: text } = await api.readNote(path);
+      setCurrent(meta);
       setContent(text);
       reset();
       editorRef.current?.focus();
@@ -83,22 +77,13 @@ export default function App() {
       if (current?.path === path) return;
       await flushAndSettle();
       try {
-        const meta = findMeta(tree, path);
-        await loadNote(
-          meta ?? {
-            path,
-            group: path.split("/")[0] ?? "",
-            title: "",
-            modified: 0,
-            size: 0,
-          },
-        );
+        await loadNote(path);
       } catch (err) {
         fail(`Could not open that note: ${api.errorText(err)}`);
         await loadTree();
       }
     },
-    [current, tree, flushAndSettle, loadNote, fail, loadTree],
+    [current, flushAndSettle, loadNote, fail, loadTree],
   );
 
   const newNote = useCallback(
@@ -116,7 +101,7 @@ export default function App() {
       try {
         const meta = await api.createNote(target, title);
         await loadTree();
-        await loadNote(meta);
+        await loadNote(meta.path);
       } catch (err) {
         fail(`Could not create the note: ${api.errorText(err)}`);
       }
@@ -156,7 +141,7 @@ export default function App() {
       const groups = await api.listTree();
       setTree(groups);
       const next = firstNote(groups);
-      if (next) await loadNote(next);
+      if (next) await loadNote(next.path);
     } catch (err) {
       fail(`Could not delete the note: ${api.errorText(err)}`);
     }
@@ -181,7 +166,7 @@ export default function App() {
 
         if (wasOpen) {
           const next = firstNote(groups);
-          if (next) await loadNote(next);
+          if (next) await loadNote(next.path);
         }
       } catch (err) {
         fail(`Could not delete the group: ${api.errorText(err)}`);
@@ -309,6 +294,16 @@ export default function App() {
     [confirm, loadTree, fail],
   );
 
+  /** Resolve a conflict by discarding our copy in favour of the file on disk. */
+  const reloadFromDisk = useCallback(async () => {
+    if (!current) return;
+    try {
+      await loadNote(current.path);
+    } catch (err) {
+      fail(`Could not reload that note: ${api.errorText(err)}`);
+    }
+  }, [current, loadNote, fail]);
+
   const bringFilesIn = useCallback(async () => {
     if (!current) return;
     await flushAndSettle();
@@ -316,8 +311,8 @@ export default function App() {
     try {
       const report = await api.importLinks(current.path);
       if (report.copied > 0) {
-        setContent(await api.readNote(current.path));
-        reset();
+        // Re-read rather than patching in place: this also refreshes the baseline.
+        await loadNote(current.path);
         await loadTree();
       }
 
@@ -407,10 +402,10 @@ export default function App() {
 
         const first = firstNote(groups);
         if (first) {
-          const text = await api.readNote(first.path);
+          const opened = await api.readNote(first.path);
           if (cancelled) return;
-          setCurrent(first);
-          setContent(text);
+          setCurrent(opened.meta);
+          setContent(opened.content);
         }
       } catch (err) {
         setBanner(`Could not read the notes folder: ${api.errorText(err)}`);
@@ -587,6 +582,21 @@ export default function App() {
             onTogglePreview={() => setPreviewOn((on) => !on)}
             onDelete={() => void deleteCurrentNote()}
           />
+
+          {hasConflict ? (
+            <div className="conflict-bar">
+              <span>
+                This note changed outside QuickNote. Nothing has been written, so
+                neither version is lost yet.
+              </span>
+              <button type="button" onClick={() => void reloadFromDisk()}>
+                Reload from disk
+              </button>
+              <button className="primary" type="button" onClick={() => void keepMine()}>
+                Keep mine
+              </button>
+            </div>
+          ) : null}
 
           {showImportBar ? (
             <div className="import-bar">
