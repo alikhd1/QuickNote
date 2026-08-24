@@ -1,0 +1,13 @@
+# Rust build output
+src-tauri/target/
+src-tauri/gen/
+
+# Built binary
+dist/
+
+# Runtime data, if the app is ever run from inside the repo
+notes/
+.cache/
+
+# Optional dev-only Tauri CLI
+node_modules/

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QuickNote</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <div id="banner" class="banner hidden" role="alert"></div>
+
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <input
+            id="search"
+            class="search"
+            type="search"
+            placeholder="Search notes"
+            autocomplete="off"
+            aria-label="Search notes"
+          />
+        </div>
+
+        <nav id="tree" class="tree" aria-label="Notes and files"></nav>
+
+        <div class="sidebar-bottom">
+          <button id="new-group" class="ghost block" type="button">+ New group</button>
+          <button
+            id="root-path"
+            class="root-path"
+            type="button"
+            title="Open the notes folder"
+          ></button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="toolbar">
+          <button id="new-note" class="primary" type="button">+ New note</button>
+          <span id="crumb" class="crumb"></span>
+          <span class="grow"></span>
+
+          <label class="move-wrap" for="move-group">
+            <span>Group</span>
+            <select id="move-group" title="Move this note to another group"></select>
+          </label>
+
+          <button id="attach" type="button" title="Attach a file to this note">Attach</button>
+          <button id="toggle-preview" type="button">Preview</button>
+          <button id="delete-note" class="danger" type="button">Delete</button>
+          <span id="status" class="status" aria-live="polite">Ready</span>
+        </header>
+
+        <!-- Shown only when the open note links to files outside the drive. -->
+        <div id="import-bar" class="import-bar hidden">
+          <span
+            >This note links to files outside the drive. They will not travel with
+            it.</span
+          >
+          <button id="import-links" class="primary" type="button">Bring files in</button>
+        </div>
+
+        <section class="workspace" id="workspace">
+          <textarea
+            id="editor"
+            class="editor"
+            spellcheck="true"
+            placeholder="Start typing. It saves itself."
+            aria-label="Note contents"
+          ></textarea>
+          <article id="preview" class="preview hidden" aria-label="Preview"></article>
+        </section>
+
+        <div id="empty" class="empty">
+          <h2>No note open</h2>
+          <p>Choose a note on the left, or create a new one.</p>
+        </div>
+      </main>
+    </div>
+
+    <div id="drop-overlay" class="drop-overlay hidden">
+      <div class="drop-card">Drop files to copy them into this group</div>
+    </div>
+
+    <!-- The webview does not offer window.prompt/confirm, so dialogs are built in. -->
+    <dialog id="ask">
+      <form method="dialog" class="dialog-form">
+        <h3 id="ask-title">Title</h3>
+        <input id="ask-input" type="text" autocomplete="off" />
+        <menu>
+          <button id="ask-ok" value="ok" class="primary" type="submit">OK</button>
+          <button value="cancel" class="ghost" type="submit">Cancel</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="confirm">
+      <form method="dialog" class="dialog-form">
+        <h3 id="confirm-title">Are you sure?</h3>
+        <p id="confirm-body" class="dialog-body"></p>
+        <menu>
+          <button id="confirm-ok" value="ok" class="danger" type="submit">Delete</button>
+          <button value="cancel" class="ghost" type="submit">Cancel</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="choose">
+      <form method="dialog" class="dialog-form">
+        <h3 id="choose-title">Attach files</h3>
+        <p id="choose-body" class="dialog-body"></p>
+        <menu>
+          <button value="copy" class="primary" type="submit">Copy into notes</button>
+          <button value="link" type="submit">Link where it is</button>
+          <button value="cancel" class="ghost" type="submit">Cancel</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="md.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
