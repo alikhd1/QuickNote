@@ -24,7 +24,6 @@ interface ToolbarProps {
   groups: string[];
   status: SaveStatus;
   previewOn: boolean;
-  onNewNote: () => void;
   onMove: (group: string) => void;
   onAttach: () => void;
   onTogglePreview: () => void;
@@ -37,11 +36,9 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <header className="toolbar">
-      <button className="primary" type="button" onClick={props.onNewNote}>
-        + New note
-      </button>
-
-      <span className="crumb">{note ? `${note.group}  /  ${note.title}` : ""}</span>
+      {/* Composing lives in the note list header, where the list it adds to is.
+          A second button here only crowded the toolbar. */}
+      <span className="crumb">{note ? note.title : ""}</span>
       <span className="grow" />
 
       <div className="move-wrap">

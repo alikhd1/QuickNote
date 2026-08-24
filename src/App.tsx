@@ -602,7 +602,6 @@ export default function App() {
             groups={groups}
             status={status}
             previewOn={previewOn}
-            onNewNote={() => void newNote()}
             onMove={(group) => void moveCurrent(group)}
             onAttach={() => void attachToNote()}
             onTogglePreview={() => setPreviewOn((on) => !on)}
