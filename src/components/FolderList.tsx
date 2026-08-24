@@ -1,3 +1,4 @@
+import { FolderIcon, PlusIcon, XIcon } from "./Icon";
 import type { GroupView } from "../types";
 
 interface FolderListProps {
@@ -30,8 +31,8 @@ export function FolderList(props: FolderListProps) {
               className={group.name === selected ? "folder selected" : "folder"}
               onClick={() => props.onSelect(group.name)}
             >
-              <span className="folder-icon" aria-hidden="true">
-                {"\u{1F4C1}"}
+              <span className="folder-icon">
+                <FolderIcon size={15} />
               </span>
               <span className="folder-name">{group.name}</span>
               <span className="folder-count">{group.notes.length}</span>
@@ -45,7 +46,7 @@ export function FolderList(props: FolderListProps) {
                   props.onDeleteGroup(group.name);
                 }}
               >
-                ×
+                <XIcon size={13} />
               </button>
             </div>
           ))
@@ -54,7 +55,8 @@ export function FolderList(props: FolderListProps) {
 
       <div className="column-foot">
         <button className="flat block" type="button" onClick={props.onNewGroup}>
-          <span aria-hidden="true">+</span> New Folder
+          <PlusIcon size={14} />
+          New Folder
         </button>
         <button
           className="root-path"

@@ -170,10 +170,11 @@ body {
   background: var(--selection);
 }
 
+/* The one splash of colour in the sidebar. */
 .folder-icon {
   flex: none;
-  font-size: 14px;
-  line-height: 1;
+  display: flex;
+  color: var(--accent);
 }
 
 .folder-name {
@@ -192,14 +193,15 @@ body {
 
 .folder-action {
   flex: none;
+  display: flex;
+  align-items: center;
   opacity: 0;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   border-radius: 4px;
-  padding: 0 4px;
-  line-height: 1.3;
+  padding: 2px;
 }
 
 .folder:hover .folder-action {
@@ -233,10 +235,25 @@ body {
 
 /* ------------------------------------------------------------ note list */
 
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 9px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
 .search {
   flex: 1;
   min-width: 0;
-  padding: 6px 10px;
+  padding: 6px 10px 6px 29px;
   font: inherit;
   font-size: 13px;
   color: var(--text);
@@ -348,7 +365,8 @@ body {
 
 .clip {
   flex: none;
-  opacity: 0.8;
+  display: flex;
+  opacity: 0.85;
 }
 
 .file-name {
@@ -367,15 +385,15 @@ body {
 
 .file-action {
   flex: none;
+  display: flex;
+  align-items: center;
   opacity: 0;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   border-radius: 4px;
-  padding: 0 3px;
-  line-height: 1.3;
-  font-size: 12px;
+  padding: 2px;
 }
 
 .file:hover .file-action {
@@ -507,6 +525,9 @@ button.flat:hover:not(:disabled) {
 }
 
 button.block {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   width: 100%;
   text-align: left;
 }
@@ -534,6 +555,17 @@ button.active {
 .icon-button:hover:not(:disabled) {
   background: var(--hover);
   color: var(--text);
+}
+
+/* Icons sit on the text baseline as inline elements; block removes the descender gap
+   that otherwise pushes them off-centre inside a button. */
+.icon-button svg {
+  display: block;
+}
+
+/* The destructive action is the only one that takes colour, and only on hover. */
+.toolbar .icon-button.danger:hover:not(:disabled) {
+  color: var(--danger);
 }
 
 .move-wrap {
@@ -867,10 +899,6 @@ button.active {
   border-bottom: 1px dashed currentColor;
 }
 
-.preview .md-attach::before,
-.preview .md-file::before {
-  content: "\01F4CE\00A0";
-}
 
 /* A link to somewhere outside the drive: it may simply not exist on this machine. */
 .preview .md-file {
@@ -884,10 +912,6 @@ button.active {
   max-width: 100%;
   border-bottom: none;
   line-height: 0;
-}
-
-.preview .md-image::before {
-  content: none;
 }
 
 .preview .md-image img {

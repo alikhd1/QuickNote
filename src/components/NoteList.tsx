@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 
+import { ComposeIcon, FolderOpenIcon, PaperclipIcon, SearchIcon, XIcon } from "./Icon";
 import type { FileMeta, GroupView, NoteMeta, SearchHit } from "../types";
 
 /**
@@ -57,19 +58,22 @@ export function NoteList(props: NoteListProps) {
   return (
     <section className="notes-col">
       <div className="column-head notes-head" data-tauri-drag-region>
-        <input
-          ref={searchRef}
-          className="search"
-          type="search"
-          placeholder="Search"
-          autoComplete="off"
-          aria-label="Search all notes"
-          value={query}
-          onChange={(event) => props.onQueryChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") props.onClearSearch();
-          }}
-        />
+        <div className="search-wrap">
+          <SearchIcon size={14} className="search-icon" />
+          <input
+            ref={searchRef}
+            className="search"
+            type="search"
+            placeholder="Search"
+            autoComplete="off"
+            aria-label="Search all notes"
+            value={query}
+            onChange={(event) => props.onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") props.onClearSearch();
+            }}
+          />
+        </div>
         <button
           className="icon-button"
           type="button"
@@ -77,7 +81,7 @@ export function NoteList(props: NoteListProps) {
           aria-label="New note"
           onClick={props.onNewNote}
         >
-          <span aria-hidden="true">✎</span>
+          <ComposeIcon size={16} />
         </button>
       </div>
 
@@ -110,7 +114,7 @@ export function NoteList(props: NoteListProps) {
                 aria-label="Attach files to this folder"
                 onClick={props.onAttach}
               >
-                <span aria-hidden="true">{"\u{1F4CE}"}</span>
+                <PaperclipIcon size={15} />
               </button>
             </div>
             {files.map((file) => (
@@ -119,8 +123,8 @@ export function NoteList(props: NoteListProps) {
                 className="file"
                 onClick={() => props.onOpenFile(file)}
               >
-                <span className="clip" aria-hidden="true">
-                  {"\u{1F4CE}"}
+                <span className="clip">
+                  <PaperclipIcon size={13} />
                 </span>
                 <span className="file-name">{file.name}</span>
                 <span className="file-size">{formatSize(file.size)}</span>
@@ -133,7 +137,7 @@ export function NoteList(props: NoteListProps) {
                     props.onRevealFile(file);
                   }}
                 >
-                  {"\u{1F4C2}"}
+                  <FolderOpenIcon size={13} />
                 </button>
                 <button
                   className="file-action file-remove"
@@ -144,7 +148,7 @@ export function NoteList(props: NoteListProps) {
                     props.onDeleteFile(file);
                   }}
                 >
-                  ×
+                  <XIcon size={13} />
                 </button>
               </div>
             ))}

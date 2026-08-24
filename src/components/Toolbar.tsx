@@ -1,3 +1,4 @@
+import { ColumnsIcon, PaperclipIcon, TrashIcon } from "./Icon";
 import { Dropdown } from "./Dropdown";
 import type { NoteMeta, SaveStatus } from "../types";
 
@@ -54,25 +55,37 @@ export function Toolbar(props: ToolbarProps) {
       </div>
 
       <button
+        className="icon-button"
         type="button"
         title="Attach a file to this note"
+        aria-label="Attach a file to this note"
         disabled={disabled}
         onClick={props.onAttach}
       >
-        Attach
+        <PaperclipIcon />
       </button>
 
       <button
+        className={previewOn ? "icon-button active" : "icon-button"}
         type="button"
-        className={previewOn ? "active" : undefined}
+        title="Toggle the Markdown preview"
+        aria-label="Toggle the Markdown preview"
+        aria-pressed={previewOn}
         disabled={disabled}
         onClick={props.onTogglePreview}
       >
-        Preview
+        <ColumnsIcon />
       </button>
 
-      <button className="danger" type="button" disabled={disabled} onClick={props.onDelete}>
-        Delete
+      <button
+        className="icon-button danger"
+        type="button"
+        title="Delete this note"
+        aria-label="Delete this note"
+        disabled={disabled}
+        onClick={props.onDelete}
+      >
+        <TrashIcon />
       </button>
 
       <span className={STATUS_CLASS[status]} aria-live="polite">
