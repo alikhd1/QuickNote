@@ -184,7 +184,7 @@ pub fn sanitize_filename(name: &str) -> Result<String, String> {
 pub fn sanitize_group(name: &str) -> Result<String, String> {
     let cleaned: String = name
         .chars()
-        .filter(|c| !matches!(c, '/' | '\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+        .filter(|c| !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
         .collect();
     let cleaned = cleaned.trim().trim_matches('.').trim().to_string();
 
@@ -240,7 +240,7 @@ mod tests {
         assert_eq!(slugify("  spaced   out  "), "spaced-out");
         assert_eq!(slugify("***"), "untitled");
         assert_eq!(slugify("CON"), "con-note");
-        assert_eq!(slugify("a/b\c:d"), "a-b-c-d");
+        assert_eq!(slugify("a/b\\c:d"), "a-b-c-d");
     }
 
     #[test]
@@ -267,7 +267,10 @@ mod tests {
         assert_eq!(sanitize_filename("Q3 Report.pdf").unwrap(), "Q3 Report.pdf");
         assert_eq!(sanitize_filename("a:b*c?.png").unwrap(), "abc.png");
         assert_eq!(sanitize_filename("report.final.docx").unwrap(), "report.final.docx");
-        assert_eq!(sanitize_filename("CON.txt").unwrap(), "con-file.txt");
+        // Case is preserved: this function keeps the name the user recognises, unlike
+        // slugify. "CON-file.txt" is no longer a reserved device name, which is the
+        // only thing the suffix is there to fix.
+        assert_eq!(sanitize_filename("CON.txt").unwrap(), "CON-file.txt");
         assert!(sanitize_filename("").is_err());
         assert!(sanitize_filename("///").is_err());
     }
