@@ -21,6 +21,42 @@ const ESCAPES: Record<string, string> = {
 export interface RenderOptions {
   /** The group the note lives in, used to resolve `_files/x.pdf` to a full path. */
   group: string;
+  /** Absolute path of the notes root, for turning an attachment into an image URL. */
+  notesRoot: string;
+  /** Converts an absolute filesystem path into a URL the webview may load. */
+  toAssetUrl: (absolutePath: string) => string;
+}
+
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
+
+/** Undo escapeHtml, for values used as filesystem paths rather than as markup. */
+function unescapeHtml(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&"); // last, so "&amp;lt;" does not become "<"
+}
+
+/**
+ * A path pointing outside the notes folder, on whichever platform wrote it.
+ *
+ * Mirrors `files::is_absolute_path` in Rust. The Unix case matters as much as the
+ * Windows one: a note written on a Mac links to `/Users/...`, and without this that
+ * link is not recognised as a file at all and renders as bare text.
+ */
+function isAbsolutePath(url: string): boolean {
+  if (/^\\\\/.test(url)) return true; // UNC share
+  if (url.startsWith("//")) return false; // protocol-relative URL, not a path
+  if (url.startsWith("/")) return true; // Unix
+  return /^[a-zA-Z]:[\\/]/.test(url); // Windows drive
+}
+
+/** Join the notes root to a relative path using whichever separator the root uses. */
+function absolutePath(root: string, relative: string): string {
+  const separator = root.includes("\\") ? "\\" : "/";
+  return root + separator + relative.split("/").join(separator);
 }
 
 export function escapeHtml(text: string): string {
@@ -36,7 +72,12 @@ export function escapeHtml(text: string): string {
  *
  * Everything else — javascript:, data:, vbs: — returns null.
  */
-function linkMarkup(label: string, rawUrl: string, options: RenderOptions): string | null {
+function linkMarkup(
+  bang: string,
+  label: string,
+  rawUrl: string,
+  options: RenderOptions,
+): string | null {
   const url = rawUrl.trim().replace(/^&lt;/, "").replace(/&gt;$/, "");
 
   if (/^(https?:\/\/|mailto:)/i.test(url)) {
@@ -45,11 +86,25 @@ function linkMarkup(label: string, rawUrl: string, options: RenderOptions): stri
 
   // An attachment in this group's _files folder. It travels with the drive.
   if (/^_files\//.test(url)) {
-    return `<a href="#" class="md-attach" data-attach="${options.group}/${url}">${label}</a>`;
+    const relative = `${options.group}/${url}`;
+
+    // Image syntax shows the picture; ordinary link syntax stays a link. That is
+    // standard Markdown, and it leaves the choice with whoever wrote the note.
+    // The anchor keeps data-attach, so clicking the picture still opens the
+    // full-size file in the system viewer.
+    if (bang && IMAGE_EXTENSIONS.test(url)) {
+      const onDisk = absolutePath(unescapeHtml(options.notesRoot), unescapeHtml(relative));
+      return (
+        `<a href="#" class="md-image" data-attach="${relative}" title="Open ${label}">` +
+        `<img src="${options.toAssetUrl(onDisk)}" alt="${label}" loading="lazy">` +
+        `</a>`
+      );
+    }
+    return `<a href="#" class="md-attach" data-attach="${relative}">${label}</a>`;
   }
 
   // An absolute path on some machine, which may not be this one.
-  if (/^[a-zA-Z]:[\\/]/.test(url) || /^\\\\/.test(url)) {
+  if (isAbsolutePath(url)) {
     return `<a href="#" class="md-file" data-file="${url}">${label}</a>`;
   }
 
@@ -71,8 +126,8 @@ function inline(text: string, options: RenderOptions): string {
   // links that open in the system viewer, not as embedded images.
   out = out.replace(
     /(!?)\[([^\]]*)\]\(([^)\n]+)\)/g,
-    (match, _bang: string, label: string, url: string) => {
-      const markup = linkMarkup(label, url, options);
+    (match, bang: string, label: string, url: string) => {
+      const markup = linkMarkup(bang, label, url, options);
       // Unrecognised or unsafe: leave the text as typed rather than swallowing it. It
       // is already escaped, so it is inert.
       return markup === null ? match : markup;
@@ -201,5 +256,7 @@ export function titleOf(text: string): string {
 /** True when the note links to an absolute path — a file that will not travel with the
  *  drive. Mirrors `files::is_absolute_path` on the Rust side. */
 export function hasExternalLinks(text: string): boolean {
-  return /\]\(\s*(?:[a-zA-Z]:[\\/]|\\\\)[^)\n]*\)/.test(String(text));
+  // Windows drive path, UNC share, or Unix absolute path. A doubled slash is excluded:
+  // that is a protocol-relative URL, not a file.
+  return /\]\(\s*(?:[a-zA-Z]:[\\/]|\\\\|\/(?!\/))[^)\n]*\)/.test(String(text));
 }

@@ -6,6 +6,9 @@ mod store;
 
 use std::path::PathBuf;
 
+// Brings asset_protocol_scope() into scope for the setup hook below.
+use tauri::Manager;
+
 /// Shared state. The notes root is resolved once at startup and never re-derived, so
 /// every command agrees on where the drive is.
 pub struct AppState {
@@ -29,8 +32,17 @@ pub fn run() {
 
     let root = base.join("notes");
     let startup_error = store::ensure_layout(&root).err();
+    let asset_root = root.clone();
 
     tauri::Builder::default()
+        // The asset protocol is what lets the preview display an attached image inline.
+        // Its config scope is left empty and only the notes folder is granted here, at
+        // runtime: the folder's location is not known until the executable finds itself,
+        // and a static "**" scope would let the webview read any file on the machine.
+        .setup(move |app| {
+            app.asset_protocol_scope().allow_directory(&asset_root, true)?;
+            Ok(())
+        })
         // dialog: the native file picker, used from the UI to choose attachments.
         // opener: opening an attachment in its default application, used only from
         // Rust, so no permission for it is exposed to the webview.

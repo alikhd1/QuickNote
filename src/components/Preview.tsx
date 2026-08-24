@@ -1,22 +1,28 @@
 import { useDeferredValue, useMemo, type MouseEvent } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 import { renderMarkdown } from "../markdown";
 
 interface PreviewProps {
   content: string;
   group: string;
+  /** Absolute path of the notes root, so attached images can be turned into URLs. */
+  notesRoot: string;
   onOpenAttachment: (path: string) => void;
   onOpenFile: (path: string) => void;
   onOpenUrl: (url: string) => void;
 }
 
 export function Preview(props: PreviewProps) {
-  const { content, group } = props;
+  const { content, group, notesRoot } = props;
 
   // Keeps typing responsive on a long note: React renders the preview from a slightly
   // stale value rather than blocking each keystroke on a full re-parse.
   const deferred = useDeferredValue(content);
-  const html = useMemo(() => renderMarkdown(deferred, { group }), [deferred, group]);
+  const html = useMemo(
+    () => renderMarkdown(deferred, { group, notesRoot, toAssetUrl: convertFileSrc }),
+    [deferred, group, notesRoot],
+  );
 
   // Every link is handled here. Letting the webview follow one would navigate the app
   // window itself and the UI would simply disappear.

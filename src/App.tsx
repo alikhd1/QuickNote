@@ -620,6 +620,7 @@ export default function App() {
                 <Preview
                   content={content}
                   group={current.group}
+                  notesRoot={startup?.root ?? ""}
                   onOpenAttachment={openAttachment}
                   onOpenFile={openExternal}
                   onOpenUrl={openUrl}

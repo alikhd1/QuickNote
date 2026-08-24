@@ -532,6 +532,31 @@ select {
   color: var(--muted);
 }
 
+/* An attached image shown inline. The anchor still carries data-attach, so clicking
+   the picture opens the full-size file in the system viewer. */
+.preview .md-image {
+  display: inline-block;
+  max-width: 100%;
+  border-bottom: none;
+  line-height: 0;
+}
+
+.preview .md-image::before {
+  content: none;
+}
+
+.preview .md-image img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+
+.preview .md-image:hover img {
+  border-color: var(--accent);
+}
+
 /* ------------------------------------------------------------ import bar + drop */
 
 .import-bar {

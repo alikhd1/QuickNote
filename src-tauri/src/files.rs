@@ -220,12 +220,27 @@ fn name_of(p: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// `C:\...`, `C:/...` or a `\\server\share` UNC path.
+/// A path pointing outside the notes folder, on whichever platform wrote it.
+///
+/// Recognises Windows drive paths, UNC shares, and Unix absolute paths. The Unix case
+/// matters as much as the others: a note written on a Mac links to `/Users/...`, and
+/// without this that link is not recognised as a file at all — it renders as bare text
+/// and "Bring files in" never offers to rescue it.
 fn is_absolute_path(url: &str) -> bool {
     let bytes = url.as_bytes();
-    if url.starts_with("\\\\") {
+
+    // UNC share: two leading backslashes.
+    if url.starts_with(r"\\") {
         return true;
     }
+
+    // Unix absolute path. A doubled slash is excluded: "//host/x" is a
+    // protocol-relative URL, not a filesystem path.
+    if bytes.first() == Some(&b'/') {
+        return bytes.get(1) != Some(&b'/');
+    }
+
+    // Windows drive path: C:\ or C:/
     bytes.len() > 2
         && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
@@ -458,13 +473,27 @@ mod tests {
 
     #[test]
     fn absolute_paths_are_recognised() {
-        assert!(is_absolute_path("C:\\Users\\me\\file.pdf"));
+        assert!(is_absolute_path(r"C:\Users\me\file.pdf"));
         assert!(is_absolute_path("D:/data/file.pdf"));
-        assert!(is_absolute_path("\\\\server\\share\\file.pdf"));
+        assert!(is_absolute_path(r"\\server\share\file.pdf"));
         assert!(!is_absolute_path("https://example.com"));
         assert!(!is_absolute_path("_files/spec.pdf"));
         assert!(!is_absolute_path(""));
     }
+
+    #[test]
+    fn unix_absolute_paths_are_recognised() {
+        // A note written on a Mac or Linux box links out like this.
+        assert!(is_absolute_path("/Users/ali/Documents/chart.png"));
+        assert!(is_absolute_path("/home/ali/notes/spec.pdf"));
+        assert!(is_absolute_path("/tmp/x"));
+
+        // Not filesystem paths: protocol-relative URLs and ordinary relative links.
+        assert!(!is_absolute_path("//example.com/logo.png"));
+        assert!(!is_absolute_path("./local.png"));
+        assert!(!is_absolute_path("_files/local.png"));
+    }
+
 
     #[test]
     fn attachments_do_not_show_up_as_notes() {
