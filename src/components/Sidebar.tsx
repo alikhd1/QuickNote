@@ -24,6 +24,7 @@ interface SidebarProps {
   onAttachToGroup: (group: string) => void;
   onDeleteGroup: (group: string) => void;
   onOpenFile: (file: FileMeta) => void;
+  onRevealFile: (file: FileMeta) => void;
   onDeleteFile: (file: FileMeta) => void;
   onOpenRoot: () => void;
 }
@@ -65,6 +66,7 @@ export function Sidebar(props: SidebarProps) {
               onAttach={props.onAttachToGroup}
               onDeleteGroup={props.onDeleteGroup}
               onOpenFile={props.onOpenFile}
+              onRevealFile={props.onRevealFile}
               onDeleteFile={props.onDeleteFile}
             />
           ))
@@ -128,6 +130,7 @@ interface GroupSectionProps {
   onAttach: (group: string) => void;
   onDeleteGroup: (group: string) => void;
   onOpenFile: (file: FileMeta) => void;
+  onRevealFile: (file: FileMeta) => void;
   onDeleteFile: (file: FileMeta) => void;
 }
 
@@ -194,10 +197,20 @@ function GroupSection(props: GroupSectionProps) {
           <span className="file-name">{file.name}</span>
           <span className="file-size">{formatSize(file.size)}</span>
           <span
-            className="file-remove"
-            title={`Remove ${file.name}`}
+            className="file-action"
+            title={`Show ${file.name} in the folder`}
             onClick={(event) => {
               // Do not also trigger the row's "open" handler.
+              event.stopPropagation();
+              props.onRevealFile(file);
+            }}
+          >
+            {"\u{1F4C2}"}
+          </span>
+          <span
+            className="file-action file-remove"
+            title={`Remove ${file.name}`}
+            onClick={(event) => {
               event.stopPropagation();
               props.onDeleteFile(file);
             }}

@@ -50,12 +50,12 @@ export default function App() {
 
   const { status, touch, flush, flushAndSettle, isDirty, reset, hasConflict, keepMine } =
     useAutoSave({
-    note: current,
-    content,
-    onMeta: setCurrent,
-    onStructureChanged: loadTree,
-    onError: fail,
-  });
+      note: current,
+      content,
+      onMeta: setCurrent,
+      onStructureChanged: loadTree,
+      onError: fail,
+    });
 
   // ---------------------------------------------------------------- notes
 
@@ -361,6 +361,13 @@ export default function App() {
     [fail],
   );
 
+  const revealAttachment = useCallback(
+    (path: string) => {
+      api.revealAttachment(path).catch((err) => fail(api.errorText(err)));
+    },
+    [fail],
+  );
+
   const openExternal = useCallback(
     (path: string) => {
       api.openExternalFile(path).catch((err) => fail(api.errorText(err)));
@@ -562,6 +569,7 @@ export default function App() {
           onAttachToGroup={(group) => void attachToGroup(group)}
           onDeleteGroup={(group) => void deleteGroup(group)}
           onOpenFile={(file) => openAttachment(file.path)}
+          onRevealFile={(file) => revealAttachment(file.path)}
           onDeleteFile={(file) => void deleteAttachment(file)}
           onOpenRoot={() => {
             api.openNotesFolder().catch((err) =>

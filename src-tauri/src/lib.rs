@@ -65,6 +65,7 @@ pub fn run() {
             commands::delete_file,
             commands::import_links,
             commands::open_attachment,
+            commands::reveal_attachment,
             commands::open_external_file,
             commands::open_url,
             commands::open_notes_folder,

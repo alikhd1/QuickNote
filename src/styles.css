@@ -237,7 +237,7 @@ body {
   color: var(--muted);
 }
 
-.file-remove {
+.file-action {
   opacity: 0;
   border: none;
   background: transparent;
@@ -246,14 +246,19 @@ body {
   border-radius: 4px;
   padding: 0 4px;
   line-height: 1.4;
+  flex: none;
 }
 
-.file:hover .file-remove {
+.file:hover .file-action {
   opacity: 1;
 }
 
-.file-remove:hover {
+.file-action:hover {
   background: var(--hover);
+  color: var(--text);
+}
+
+.file-remove:hover {
   color: var(--danger);
 }
 

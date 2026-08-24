@@ -175,6 +175,18 @@ pub fn open_attachment(
         .map_err(|e| format!("cannot open that file: {e}"))
 }
 
+/// Show an attachment in the system file manager, with the file selected.
+///
+/// The escape hatch for when the host PC's file association sends something somewhere
+/// unhelpful: from the folder you can open it with whatever you like. QuickNote asks
+/// the OS for the default handler and deliberately does not second-guess it.
+#[tauri::command]
+pub fn reveal_attachment(state: State<AppState>, path: String) -> Result<(), String> {
+    let full = files::resolve_attachment(&state.root, &path)?;
+    tauri_plugin_opener::reveal_item_in_dir(full)
+        .map_err(|e| format!("cannot show that file: {e}"))
+}
+
 /// Open a file the user linked by absolute path, which may well not exist on this
 /// machine — that is the whole hazard of linking instead of copying.
 #[tauri::command]

@@ -107,8 +107,14 @@ travel together from then on. Links it cannot reach are reported and left untouc
 the original path still visible so you can go and find the file.
 
 Attached files are listed under their group in the sidebar. Click one to open it in
-whatever application the host PC uses for that file type; hover and click `×` to remove
-it. As with notes, removing moves it to `_trash` rather than erasing it.
+whatever application the host PC uses for that file type. Hovering a file reveals two
+actions: the folder icon shows it in Finder or Explorer, and `×` removes it. As with
+notes, removing moves it to `_trash` rather than erasing it.
+
+"Show in folder" is the escape hatch for a host PC whose file associations send
+something somewhere unhelpful — a `.png` set to open in a text editor, say. QuickNote
+asks the operating system for the default handler and deliberately does not second-guess
+it, so from the folder you can open the file with whatever you like.
 
 ### The title is the filename
 

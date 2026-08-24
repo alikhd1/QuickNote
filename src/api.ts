@@ -78,6 +78,10 @@ export const importLinks = (path: string) => invoke<ImportReport>("import_links"
 
 export const openAttachment = (path: string) => invoke<void>("open_attachment", { path });
 
+/** Show an attachment in Finder/Explorer, for when its file association is unhelpful. */
+export const revealAttachment = (path: string) =>
+  invoke<void>("reveal_attachment", { path });
+
 export const openExternalFile = (path: string) =>
   invoke<void>("open_external_file", { path });
 
