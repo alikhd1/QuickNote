@@ -112,23 +112,34 @@ fair trade for inline thumbnails.
 
 ## Building
 
-Needs Rust (`x86_64-pc-windows-msvc`) and Visual Studio Build Tools with the VC++ x64
-toolset and a Windows SDK. **Node is not required.**
+Needs:
+
+- Rust (`x86_64-pc-windows-msvc`) and Visual Studio Build Tools with the VC++ x64
+  toolset and a Windows SDK
+- Node 18+ and npm, for the React/TypeScript frontend
 
 ```powershell
 .\build.ps1
 ```
 
-That produces `dist\QuickNote.exe`. Under the hood it is just:
+That installs frontend dependencies if needed, type-checks and bundles the UI to
+`dist-web\`, compiles the Rust binary with that bundle embedded, and leaves
+`dist\QuickNote.exe`.
+
+Note that the build machine needs Node, but **the flash drive does not**. The bundle is
+embedded in the binary, so what ships is still a single self-contained exe with no
+runtime dependencies beyond WebView2.
+
+Individual steps, if you want them separately:
 
 ```powershell
+npm install          # once
+npm run typecheck    # tsc --noEmit, no bundle
+npm run build        # type-check + bundle to dist-web\
 cd src-tauri; cargo build --release
 ```
 
-The frontend is static, so `tauri-build` embeds `web\` straight into the binary — no
-bundler, no `node_modules`, no installer.
-
-Run the tests with:
+Rust tests:
 
 ```powershell
 cd src-tauri; cargo test
@@ -144,14 +155,25 @@ Regenerate the icon after changing `tools/make-icon.py`:
 python tools\make-icon.py
 ```
 
+### Development
+
+`npm run tauri dev` gives hot reload against a Vite dev server on port 1420. One caveat:
+the production `csp` in `tauri.conf.json` sets `script-src 'self'`, and React's dev-mode
+refresh injects an inline script that this blocks. If dev mode comes up blank, relax the
+`csp` field temporarily — and put it back before building a release, since that strict
+policy is part of why note content can never execute.
+
 ---
 
 ## How it is put together
 
 ```
-web/            vanilla HTML/CSS/JS, no framework
-  md.js         escape-then-render Markdown (no library, no sanitiser needed)
-  app.js        UI, auto-save, search, attachments
+src/                        React + TypeScript frontend
+  types.ts                  mirrors of the structs Rust serialises
+  api.ts                    typed wrappers; the only file that calls invoke
+  markdown.ts               escape-then-render Markdown (no library, no sanitiser)
+  hooks/useAutoSave.ts      debounced save and filename settling
+  components/               Sidebar, Toolbar, Preview, Dialogs
 src-tauri/src/
   main.rs       entry point, WebView2 redirection, command registration
   paths.rs      exe-relative root, slugs, filename cleaning, traversal guard

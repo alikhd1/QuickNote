@@ -2,12 +2,13 @@
 src-tauri/target/
 src-tauri/gen/
 
+# Frontend
+node_modules/
+dist-web/
+
 # Built binary
 dist/
 
 # Runtime data, if the app is ever run from inside the repo
 notes/
 .cache/
-
-# Optional dev-only Tauri CLI
-node_modules/

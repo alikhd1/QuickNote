@@ -4,10 +4,13 @@
   "version": "1.0.0",
   "identifier": "com.quicknote.portable",
   "build": {
-    "frontendDist": "../web"
+    "frontendDist": "../dist-web",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "label": "main",
@@ -26,6 +29,8 @@
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/icon.ico"]
+    "icon": [
+      "icons/icon.ico"
+    ]
   }
 }

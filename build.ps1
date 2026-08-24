@@ -3,9 +3,13 @@
     Builds the portable QuickNote.exe into dist\.
 
 .DESCRIPTION
-    Plain 'cargo build --release' is enough: the frontend is static and tauri-build
-    embeds web\ into the binary, so there is no Node step and no installer to produce.
-    The result is one self-contained exe to drop on a flash drive.
+    Three steps: install the frontend dependencies if needed, bundle the React app to
+    dist-web\, then compile the Rust binary with that bundle embedded. The result is one
+    self-contained exe to drop on a flash drive — no installer, and nothing for the host
+    PC to install either.
+
+    The frontend is built here rather than left to tauri.conf.json's beforeBuildCommand,
+    because that only runs under the Tauri CLI and this script uses plain cargo.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +23,19 @@ if (-not (Test-Path $icon)) {
     python (Join-Path $root 'tools\make-icon.py')
     if ($LASTEXITCODE -ne 0) { throw "Icon generation failed with exit code $LASTEXITCODE" }
 }
+
+if (-not (Test-Path (Join-Path $root 'node_modules'))) {
+    Write-Host 'Installing frontend dependencies...' -ForegroundColor Cyan
+    npm install
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+}
+
+Write-Host 'Type-checking and bundling the UI...' -ForegroundColor Cyan
+npm run build
+if ($LASTEXITCODE -ne 0) { throw "Frontend build failed with exit code $LASTEXITCODE" }
+
+$bundle = Join-Path $root 'dist-web\index.html'
+if (-not (Test-Path $bundle)) { throw "Frontend build produced no $bundle" }
 
 Write-Host 'Building QuickNote (release)...' -ForegroundColor Cyan
 Push-Location $srcTauri

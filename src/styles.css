@@ -40,7 +40,8 @@
 }
 
 html,
-body {
+body,
+#root {
   height: 100%;
   margin: 0;
 }
@@ -51,10 +52,6 @@ body {
   color: var(--text);
   background: var(--bg);
   overflow: hidden;
-}
-
-.hidden {
-  display: none !important;
 }
 
 .grow {
