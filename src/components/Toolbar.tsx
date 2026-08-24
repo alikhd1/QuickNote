@@ -1,3 +1,4 @@
+import { Dropdown } from "./Dropdown";
 import type { NoteMeta, SaveStatus } from "../types";
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
@@ -43,22 +44,17 @@ export function Toolbar(props: ToolbarProps) {
       <span className="crumb">{note ? `${note.group}  /  ${note.title}` : ""}</span>
       <span className="grow" />
 
-      <label className="move-wrap" htmlFor="move-group">
+      <div className="move-wrap">
         <span>Group</span>
-        <select
-          id="move-group"
-          title="Move this note to another group"
-          disabled={disabled}
+        <Dropdown
           value={note?.group ?? ""}
-          onChange={(event) => props.onMove(event.target.value)}
-        >
-          {groups.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={groups}
+          disabled={disabled}
+          label="Move this note to another group"
+          title="Move this note to another group"
+          onChange={props.onMove}
+        />
+      </div>
 
       <button
         type="button"
