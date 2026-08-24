@@ -5,7 +5,8 @@ save themselves as plain Markdown files right next to the program — and the fi
 attach to them stored alongside.
 
 Plug the drive into any Windows PC and your notes are there. Nothing is installed, and
-nothing is left behind on the host machine.
+none of your notes, attachments or cache ever touch the host machine — with one measured
+exception noted under [Known limitations](#known-limitations).
 
 ---
 
@@ -241,8 +242,10 @@ plugged into. Instead the notes root comes from `std::env::current_exe()`, and t
 plugin is not installed at all — every file operation goes through this app's own Rust
 commands, so there is no route from the UI to an unintended directory.
 
-**WebView2's user-data folder is redirected** to `.cache\` on the drive before the webview
-starts, so the host PC gets no `%APPDATA%` folder, no registry keys, and no installer.
+**WebView2's user-data folder is redirected** to `.cache/` on the drive before the
+webview starts. That is the one that matters: it is where cache, cookies and local
+storage would otherwise accumulate on the host PC, and it can grow to tens of
+megabytes. No registry keys are written and no installer runs.
 
 Two official plugins are used, narrowly. `dialog` supplies the native file picker and is
 the only one the webview can call (`dialog:allow-open`). `opener` opens attachments and
@@ -255,7 +258,20 @@ sandbox directory instead.
 
 ---
 
-## Known limitation
+## Known limitations
+
+### One empty directory on the host
+
+Running the app creates `%LOCALAPPDATA%/com.quicknote.portable/` on whatever PC you plug
+into. The Tauri runtime creates it during startup from the app identifier, before any of
+our code could intervene.
+
+It stays **empty** — verified by running the release binary in a scratch folder with the
+working directory set elsewhere, then inspecting it. Notes, attachments and the webview
+cache all go to the drive as intended. So nothing of yours leaks, but the claim is "no
+data left behind", not "no trace left behind".
+
+### The host webview
 
 QuickNote renders through the host's own webview rather than shipping one, which is why
 the binary is small enough to live on a drive. The cost is a runtime dependency:
@@ -268,5 +284,7 @@ the binary is small enough to live on a drive. The cost is a runtime dependency:
 - **Linux** needs `webkit2gtk` 4.1. The AppImage does not bundle it, so a very minimal
   distribution may need it installed.
 
-The Windows and macOS behaviour has been reasoned about carefully; the Linux path is
-built and tested by CI but has not been used in anger.
+The Windows path is verified: the release binary was run from a scratch folder with
+its working directory deliberately set elsewhere, and it created `notes/` and
+`.cache/` beside itself as intended. The macOS and Linux equivalents are compiled by
+CI but have not been run.
