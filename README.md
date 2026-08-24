@@ -29,6 +29,10 @@ E:\QuickNote\
   .cache\                WebView2 scratch, kept on the drive
 ```
 
+The window has three columns: folders on the left, the notes inside the selected folder
+in the middle, and the note itself on the right. Each note row shows its title, when it
+was last touched, and the start of its text.
+
 - **Groups are folders**, **notes are `.md` files**, **attachments live in the group's
   `_files` folder.** Open any of them in Notepad or Explorer any time.
 - **Back up by copying `notes\`.** That is the whole database, attachments included.

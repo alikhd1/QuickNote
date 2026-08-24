@@ -7,7 +7,8 @@ import { hasExternalLinks } from "./markdown";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useDialogs } from "./components/Dialogs";
 import { Preview } from "./components/Preview";
-import { Sidebar } from "./components/Sidebar";
+import { FolderList } from "./components/FolderList";
+import { NoteList } from "./components/NoteList";
 import { Toolbar } from "./components/Toolbar";
 import type { FileMeta, GroupView, NoteMeta, SearchHit, Startup } from "./types";
 
@@ -30,6 +31,9 @@ export default function App() {
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [previewOn, setPreviewOn] = useState(false);
   const [dropActive, setDropActive] = useState(false);
+  // Which folder the middle column is showing. Null until the user picks one, at
+  // which point it stops following whichever note happens to be open.
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -65,6 +69,7 @@ export default function App() {
     async (path: string) => {
       const { meta, content: text } = await api.readNote(path);
       setCurrent(meta);
+      setSelectedGroup(meta.group);
       setContent(text);
       reset();
       editorRef.current?.focus();
@@ -160,6 +165,7 @@ export default function App() {
         await api.deleteGroup(name);
         const wasOpen = current?.group === name;
         if (wasOpen) clearNote();
+        if (selectedGroup === name) setSelectedGroup(null);
 
         const groups = await api.listTree();
         setTree(groups);
@@ -172,7 +178,7 @@ export default function App() {
         fail(`Could not delete the group: ${api.errorText(err)}`);
       }
     },
-    [current, confirm, clearNote, loadNote, fail],
+    [current, selectedGroup, confirm, clearNote, loadNote, fail],
   );
 
   const moveCurrent = useCallback(
@@ -540,6 +546,10 @@ export default function App() {
   // ---------------------------------------------------------------- render
 
   const groups = tree.map((group) => group.name);
+  // Falls back to the open note's folder, then the first, so the middle column always
+  // has something to show rather than sitting empty on launch.
+  const activeGroupName = selectedGroup ?? current?.group ?? tree[0]?.name ?? null;
+  const activeGroup = tree.find((group) => group.name === activeGroupName) ?? null;
   const showImportBar = current !== null && hasExternalLinks(content);
 
   return (
@@ -551,12 +561,25 @@ export default function App() {
       ) : null}
 
       <div className="app">
-        <Sidebar
-          tree={tree}
+        <FolderList
+          groups={tree}
+          selected={activeGroupName}
+          rootPath={startup?.root ?? ""}
+          onSelect={setSelectedGroup}
+          onNewGroup={() => void newGroup()}
+          onDeleteGroup={(name) => void deleteGroup(name)}
+          onOpenRoot={() => {
+            api.openNotesFolder().catch((err) =>
+              fail(`Could not open the notes folder: ${api.errorText(err)}`),
+            );
+          }}
+        />
+
+        <NoteList
+          group={activeGroup}
           hits={hits}
           currentPath={current?.path ?? null}
           query={query}
-          rootPath={startup?.root ?? ""}
           searchRef={searchRef}
           onQueryChange={setQuery}
           onClearSearch={() => {
@@ -564,18 +587,13 @@ export default function App() {
             editorRef.current?.focus();
           }}
           onOpenNote={(path) => void openNote(path)}
-          onNewGroup={() => void newGroup()}
-          onNewNote={(group) => void newNote(group)}
-          onAttachToGroup={(group) => void attachToGroup(group)}
-          onDeleteGroup={(group) => void deleteGroup(group)}
+          onNewNote={() => void newNote(activeGroupName ?? undefined)}
+          onAttach={() => {
+            if (activeGroupName) void attachToGroup(activeGroupName);
+          }}
           onOpenFile={(file) => openAttachment(file.path)}
           onRevealFile={(file) => revealAttachment(file.path)}
           onDeleteFile={(file) => void deleteAttachment(file)}
-          onOpenRoot={() => {
-            api.openNotesFolder().catch((err) =>
-              fail(`Could not open the notes folder: ${api.errorText(err)}`),
-            );
-          }}
         />
 
         <main className="main">

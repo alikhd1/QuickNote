@@ -1,39 +1,50 @@
-/* QuickNote — light and dark, no external fonts or assets (the CSP allows neither). */
+/* QuickNote — a three-column notes UI, light and dark.
+   No external fonts or assets: the CSP allows neither. */
 
 :root {
-  --bg: #f6f7f9;
-  --panel: #ffffff;
-  --text: #1c2024;
-  --muted: #6b7480;
-  --border: #e2e5ea;
-  --hover: #eef1f5;
-  --active: #e4ebff;
-  --accent: #3355dd;
-  --accent-text: #ffffff;
-  --danger: #c0392b;
-  --ok: #1f8a4c;
-  --code-bg: #f0f2f5;
-  --focus-ring: rgba(51, 85, 221, 0.22);
+  /* Each column sits on its own tone, which is what gives the three-pane layout its
+     depth without needing heavy borders. */
+  --folders-bg: #efeef2;
+  --list-bg: #fbfbfc;
+  --editor-bg: #ffffff;
 
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --text: #1d1d1f;
+  --muted: #86868b;
+  --hairline: #dcdce0;
+  --hover: rgba(0, 0, 0, 0.045);
+
+  /* The warm accent a notes app is known for. */
+  --accent: #d9a520;
+  --selection: #ffe9a3;
+  --focus-ring: rgba(217, 165, 32, 0.3);
+
+  --danger: #d33a2c;
+  --ok: #1f8a4c;
+  --code-bg: #f2f2f4;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #16181c;
-    --panel: #1e2126;
-    --text: #e6e8eb;
-    --muted: #949ba6;
-    --border: #2c3038;
-    --hover: #262a31;
-    --active: #2b3550;
-    --accent: #5b7cff;
-    --accent-text: #ffffff;
-    --danger: #e5675a;
+    --folders-bg: #2a2a2c;
+    --list-bg: #202022;
+    --editor-bg: #1c1c1e;
+
+    --text: #f2f2f7;
+    --muted: #98989d;
+    --hairline: #3a3a3c;
+    --hover: rgba(255, 255, 255, 0.06);
+
+    --accent: #f0c14b;
+    --selection: #574718;
+    --focus-ring: rgba(240, 193, 75, 0.32);
+
+    --danger: #ff6961;
     --ok: #4ac07d;
-    --code-bg: #262a31;
-    --focus-ring: rgba(91, 124, 255, 0.3);
+    --code-bg: #2c2c2e;
   }
 }
 
@@ -52,38 +63,38 @@ body {
   font-family: var(--sans);
   font-size: 14px;
   color: var(--text);
-  background: var(--bg);
+  background: var(--editor-bg);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .grow {
   flex: 1;
 }
 
-/* ------------------------------------------------------------ layout */
+/* ------------------------------------------------------------ three columns */
 
 .app {
   display: flex;
   height: 100vh;
 }
 
-.sidebar {
-  width: 264px;
-  min-width: 264px;
+.folders {
+  width: 204px;
+  min-width: 204px;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
-  border-right: 1px solid var(--border);
+  background: var(--folders-bg);
+  border-right: 1px solid var(--hairline);
 }
 
-.sidebar-top {
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.sidebar-bottom {
-  padding: 8px 10px 10px;
-  border-top: 1px solid var(--border);
+.notes-col {
+  width: 302px;
+  min-width: 302px;
+  display: flex;
+  flex-direction: column;
+  background: var(--list-bg);
+  border-right: 1px solid var(--hairline);
 }
 
 .main {
@@ -91,140 +102,253 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: var(--editor-bg);
 }
 
-/* ------------------------------------------------------------ sidebar */
+/* Shared column furniture ------------------------------------------------- */
 
-.search {
-  width: 100%;
-  padding: 7px 10px;
-  font: inherit;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  outline: none;
-}
-
-.search:focus {
-  border-color: var(--accent);
-}
-
-.tree {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 0 12px;
-}
-
-.group {
-  margin-bottom: 2px;
-}
-
-.group-head {
+.column-head {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px 6px 8px;
-  color: var(--muted);
+  gap: 8px;
+  height: 46px;
+  flex: none;
+  padding: 0 14px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--hairline);
 }
 
-.group-name {
+.notes-head {
+  padding: 0 8px 0 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.folders-scroll,
+.notes-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0 14px;
+}
+
+.column-empty {
+  padding: 14px 16px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.column-foot {
+  flex: none;
+  padding: 6px 8px 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ------------------------------------------------------------ folders */
+
+.folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 1px 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: default;
+  user-select: none;
+}
+
+.folder:hover {
+  background: var(--hover);
+}
+
+.folder.selected {
+  background: var(--selection);
+}
+
+.folder-icon {
+  flex: none;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.folder-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.group-action {
+.folder-count {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-action {
+  flex: none;
   opacity: 0;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 13px;
-  line-height: 1.4;
+  padding: 0 4px;
+  line-height: 1.3;
 }
 
-.group:hover .group-action {
+.folder:hover .folder-action {
   opacity: 1;
 }
 
-.group-action:hover {
-  background: var(--hover);
-  color: var(--text);
+.folder-action:hover {
+  color: var(--danger);
 }
 
-.note {
+.root-path {
   display: block;
   width: 100%;
-  text-align: left;
+  margin-top: 6px;
+  padding: 4px 8px 0;
   border: none;
   background: transparent;
-  color: var(--text);
-  font: inherit;
-  padding: 6px 12px 6px 20px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-family: var(--mono);
+  word-break: break-all;
+  line-height: 1.4;
   cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-left: 2px solid transparent;
 }
 
-.note:hover {
+.root-path:hover {
+  color: var(--accent);
+  background: transparent;
+}
+
+/* ------------------------------------------------------------ note list */
+
+.search {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--hover);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  outline: none;
+}
+
+.search::placeholder {
+  color: var(--muted);
+}
+
+.search:focus {
+  background: var(--editor-bg);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Two lines per row — title, then date and a glimpse of the body. */
+.note-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: calc(100% - 12px);
+  margin: 1px 6px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  cursor: default;
+  overflow: hidden;
+}
+
+.note-row:hover {
   background: var(--hover);
 }
 
-.note.selected {
-  background: var(--active);
-  border-left-color: var(--accent);
+.note-row.selected {
+  background: var(--selection);
+}
+
+.note-row-title {
+  font-size: 13.5px;
   font-weight: 600;
-}
-
-.note-empty,
-.tree-empty {
-  padding: 6px 12px 8px 20px;
-  color: var(--muted);
-  font-size: 12px;
-  font-style: italic;
-}
-
-.hit-snippet {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Attached files sit under a group's notes, indented the same but visually quieter so
-   the notes stay the primary thing. */
-.file {
+.note-row-meta {
+  display: flex;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.note-row-when {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.note-row-preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ attachments */
+
+.files-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
-  text-align: left;
-  border: none;
-  border-left: 2px solid transparent;
-  background: transparent;
+  margin: 12px 6px 2px;
+  padding: 10px 8px 4px;
+  border-top: 1px solid var(--hairline);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  padding: 5px 8px 5px 18px;
-  cursor: pointer;
+}
+
+.files-head span:first-child {
+  flex: 1;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 1px 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: default;
 }
 
 .file:hover {
   background: var(--hover);
   color: var(--text);
+}
+
+.clip {
+  flex: none;
+  opacity: 0.8;
 }
 
 .file-name {
@@ -235,20 +359,23 @@ body {
 }
 
 .file-size {
+  flex: none;
   font-size: 11px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .file-action {
+  flex: none;
   opacity: 0;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   border-radius: 4px;
-  padding: 0 4px;
-  line-height: 1.4;
-  flex: none;
+  padding: 0 3px;
+  line-height: 1.3;
+  font-size: 12px;
 }
 
 .file:hover .file-action {
@@ -256,39 +383,11 @@ body {
 }
 
 .file-action:hover {
-  background: var(--hover);
   color: var(--text);
 }
 
 .file-remove:hover {
   color: var(--danger);
-}
-
-.clip {
-  flex: none;
-  opacity: 0.75;
-}
-
-.root-path {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
-  padding: 4px 0 0;
-  border: none;
-  background: transparent;
-  text-align: left;
-  color: var(--muted);
-  font-size: 11px;
-  font-family: var(--mono);
-  word-break: break-all;
-  line-height: 1.4;
-  cursor: pointer;
-}
-
-.root-path:hover {
-  color: var(--accent);
-  background: transparent;
-  text-decoration: underline;
 }
 
 /* ------------------------------------------------------------ toolbar */
@@ -297,9 +396,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
+  height: 46px;
+  flex: none;
+  padding: 0 14px;
+  background: var(--editor-bg);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .crumb {
@@ -308,15 +409,16 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 40%;
+  max-width: 36%;
 }
 
 button {
   font: inherit;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--panel);
+  font-size: 13px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid var(--hairline);
+  background: var(--editor-bg);
   color: var(--text);
   cursor: pointer;
 }
@@ -326,30 +428,46 @@ button:hover:not(:disabled) {
 }
 
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
+}
+
+button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-text);
+  color: #2b2205;
+  font-weight: 600;
 }
 
 button.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
 }
 
 button.danger {
   color: var(--danger);
 }
 
-button.ghost {
+button.ghost,
+button.flat {
   background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+button.flat:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
 }
 
 button.block {
   width: 100%;
+  text-align: left;
 }
 
 button.active {
@@ -357,12 +475,48 @@ button.active {
   color: var(--accent);
 }
 
+/* Small square borderless button, for the compose and paperclip actions. */
+.icon-button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
 .move-wrap {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.status {
+  min-width: 92px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.status.ok {
+  color: var(--ok);
+}
+
+.status.error {
+  color: var(--danger);
+  font-weight: 600;
 }
 
 /* ------------------------------------------------------------ dropdown */
@@ -378,9 +532,9 @@ button.active {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 108px;
+  min-width: 104px;
   max-width: 170px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-size: 13px;
   text-align: left;
 }
@@ -429,8 +583,8 @@ button.active {
   margin: 0;
   padding: 4px;
   list-style: none;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--editor-bg);
+  border: 1px solid var(--hairline);
   border-radius: 10px;
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.16),
@@ -466,7 +620,7 @@ button.active {
   border-radius: 6px;
   font-size: 13px;
   color: var(--text);
-  cursor: pointer;
+  cursor: default;
   user-select: none;
 }
 
@@ -480,7 +634,7 @@ button.active {
 }
 
 .dropdown-option.selected.active {
-  background: var(--active);
+  background: var(--selection);
 }
 
 .dropdown-check {
@@ -497,22 +651,6 @@ button.active {
   white-space: nowrap;
 }
 
-.status {
-  min-width: 96px;
-  text-align: right;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.status.ok {
-  color: var(--ok);
-}
-
-.status.error {
-  color: var(--danger);
-  font-weight: 600;
-}
-
 /* ------------------------------------------------------------ workspace */
 
 .workspace {
@@ -524,26 +662,31 @@ button.active {
 .editor {
   flex: 1;
   min-width: 0;
-  padding: 22px 26px;
+  padding: 30px 44px 44px;
   border: none;
   outline: none;
   resize: none;
-  font-family: var(--mono);
-  font-size: 14px;
-  line-height: 1.7;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.75;
   color: var(--text);
-  background: var(--bg);
+  background: var(--editor-bg);
   tab-size: 4;
+}
+
+.editor::placeholder {
+  color: var(--muted);
 }
 
 .preview {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 22px 26px;
-  border-left: 1px solid var(--border);
-  background: var(--panel);
-  line-height: 1.65;
+  padding: 30px 44px 44px;
+  border-left: 1px solid var(--hairline);
+  background: var(--editor-bg);
+  font-size: 15px;
+  line-height: 1.7;
 }
 
 .empty {
@@ -553,12 +696,12 @@ button.active {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  gap: 2px;
+  gap: 4px;
 }
 
 .empty h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
 }
 
@@ -574,27 +717,27 @@ button.active {
 .preview h3,
 .preview h4 {
   line-height: 1.3;
-  margin: 1.4em 0 0.5em;
+  margin: 1.3em 0 0.5em;
 }
 
 .preview h1 {
-  font-size: 1.6em;
+  font-size: 1.55em;
   margin-top: 0;
 }
 .preview h2 {
-  font-size: 1.3em;
+  font-size: 1.28em;
 }
 .preview h3 {
-  font-size: 1.12em;
+  font-size: 1.1em;
 }
 
 .preview p {
-  margin: 0 0 0.9em;
+  margin: 0 0 0.85em;
 }
 
 .preview ul,
 .preview ol {
-  margin: 0 0 0.9em;
+  margin: 0 0 0.85em;
   padding-left: 1.4em;
 }
 
@@ -603,15 +746,15 @@ button.active {
 }
 
 .preview blockquote {
-  margin: 0 0 0.9em;
+  margin: 0 0 0.85em;
   padding: 0.1em 0 0.1em 0.9em;
-  border-left: 3px solid var(--border);
+  border-left: 3px solid var(--hairline);
   color: var(--muted);
 }
 
 .preview code {
   font-family: var(--mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
   background: var(--code-bg);
   padding: 0.12em 0.35em;
   border-radius: 4px;
@@ -622,18 +765,18 @@ button.active {
   padding: 12px 14px;
   border-radius: 8px;
   overflow-x: auto;
-  margin: 0 0 0.9em;
+  margin: 0 0 0.85em;
 }
 
 .preview pre code {
   background: none;
   padding: 0;
-  font-size: 0.88em;
+  font-size: 0.86em;
 }
 
 .preview hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--hairline);
   margin: 1.4em 0;
 }
 
@@ -641,8 +784,7 @@ button.active {
   color: var(--accent);
 }
 
-/* Attachment links open in the system viewer rather than navigating the webview, so
-   they are marked with a paperclip to set them apart from ordinary web links. */
+/* Attachment links open in the system viewer rather than navigating the webview. */
 .preview .md-attach,
 .preview .md-file {
   color: var(--accent);
@@ -677,7 +819,7 @@ button.active {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   cursor: zoom-in;
 }
 
@@ -685,15 +827,24 @@ button.active {
   border-color: var(--accent);
 }
 
-/* ------------------------------------------------------------ import bar + drop */
+/* ------------------------------------------------------------ bars and overlays */
+
+.banner {
+  padding: 9px 14px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 13px;
+}
 
 .import-bar {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: none;
   padding: 8px 14px;
-  background: var(--active);
-  border-bottom: 1px solid var(--border);
+  background: var(--selection);
+  color: var(--text);
+  border-bottom: 1px solid var(--hairline);
   font-size: 13px;
 }
 
@@ -707,10 +858,11 @@ button.active {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: none;
   padding: 8px 14px;
   background: var(--danger);
   color: #fff;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--hairline);
   font-size: 13px;
 }
 
@@ -741,7 +893,7 @@ button.active {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(51, 85, 221, 0.14);
+  background: rgba(217, 165, 32, 0.14);
   backdrop-filter: blur(1px);
   pointer-events: none;
 }
@@ -750,34 +902,27 @@ button.active {
   padding: 18px 26px;
   border-radius: 12px;
   border: 2px dashed var(--accent);
-  background: var(--panel);
+  background: var(--editor-bg);
   color: var(--text);
   font-size: 15px;
   font-weight: 600;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
-/* ------------------------------------------------------------ banner + dialogs */
-
-.banner {
-  padding: 9px 14px;
-  background: var(--danger);
-  color: #fff;
-  font-size: 13px;
-}
+/* ------------------------------------------------------------ dialogs */
 
 dialog {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--editor-bg);
   color: var(--text);
   padding: 0;
-  min-width: 320px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  min-width: 340px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
 }
 
 dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .dialog-form {
@@ -802,14 +947,15 @@ dialog::backdrop {
   padding: 8px 10px;
   font: inherit;
   color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: var(--hover);
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
   outline: none;
 }
 
 .dialog-form input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .dialog-form menu {
@@ -830,8 +976,12 @@ dialog::backdrop {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: transparent;
   border-radius: 6px;
+}
+
+:hover::-webkit-scrollbar-thumb {
+  background: var(--hairline);
 }
 
 ::-webkit-scrollbar-thumb:hover {

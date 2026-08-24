@@ -10,6 +10,8 @@ export interface NoteMeta {
   path: string;
   group: string;
   title: string;
+  /** The start of the body, for the second line of a note-list row. */
+  preview: string;
   /** Milliseconds since the Unix epoch. */
   modified: number;
   size: number;

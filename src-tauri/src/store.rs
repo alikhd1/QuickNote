@@ -21,6 +21,7 @@ const NOTE_EXT: &str = "md";
 const DEFAULT_GROUP: &str = "Notes";
 const TITLE_HEAD_BYTES: u64 = 1024;
 const MAX_TITLE_CHARS: usize = 80;
+const MAX_PREVIEW_CHARS: usize = 140;
 
 #[derive(Serialize, Clone)]
 pub struct NoteMeta {
@@ -28,6 +29,8 @@ pub struct NoteMeta {
     pub path: String,
     pub group: String,
     pub title: String,
+    /// The start of the body, for the second line of a note-list row.
+    pub preview: String,
     /// Milliseconds since the Unix epoch.
     pub modified: u64,
     pub size: u64,
@@ -166,10 +169,12 @@ pub fn meta_for(root: &Path, full: &Path) -> Result<NoteMeta, String> {
     let rel = paths::to_relative(root, full);
     let group = rel.split('/').next().unwrap_or("").to_string();
 
+    let (title, preview) = title_and_preview(full);
     Ok(NoteMeta {
         path: rel,
         group,
-        title: title_of_file(full),
+        title,
+        preview,
         modified: modified_ms(&fs_meta),
         size: fs_meta.len(),
     })
@@ -415,19 +420,42 @@ fn strip_suffix_number(stem: &str) -> String {
     }
 }
 
-/// Read only the head of the file: the title sits on the first line, and reading every
-/// note in full just to draw the sidebar would be wasteful over USB.
-fn title_of_file(path: &Path) -> String {
+/// The title and the start of the body, from a single read of the file's head.
+///
+/// The note list needs both for every note it draws, and opening each file twice to
+/// fill in one sidebar would be wasteful over USB.
+fn title_and_preview(path: &Path) -> (String, String) {
     let mut buf = Vec::new();
     if let Ok(file) = File::open(path) {
         let _ = file.take(TITLE_HEAD_BYTES).read_to_end(&mut buf);
     }
     let head = String::from_utf8_lossy(&buf);
-    title_of(&head).unwrap_or_else(|| {
-        path.file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "Untitled".into())
-    })
+    let mut lines = head.lines().map(str::trim).filter(|line| !line.is_empty());
+
+    let title = lines
+        .next()
+        .map(without_heading_marks)
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| {
+            path.file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "Untitled".into())
+        });
+
+    let preview: String = lines
+        .map(without_heading_marks)
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(MAX_PREVIEW_CHARS)
+        .collect();
+
+    (title.chars().take(MAX_TITLE_CHARS).collect(), preview)
+}
+
+fn without_heading_marks(line: &str) -> String {
+    let stripped = line.trim_start_matches('#').trim();
+    if stripped.is_empty() { line.to_string() } else { stripped.to_string() }
 }
 
 /// The first `# heading`, else the first non-empty line.
