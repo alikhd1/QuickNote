@@ -11,18 +11,47 @@ const RESERVED: [&str; 22] = [
     "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
 ];
 
-/// The directory holding the executable.
+/// The directory the app's notes folder sits beside.
 ///
 /// Every path in the app is resolved from here, never from the current directory:
 /// double-clicking an exe can hand the process a working directory anywhere on the
 /// system, which is the classic way a "portable" app ends up writing to the host PC.
-/// Resolving from the exe is also what makes the drive letter irrelevant — `E:` and
-/// `F:` produce the same layout with no reconfiguration.
+/// Resolving from the executable is also what makes the drive letter irrelevant — `E:`
+/// and `F:` produce the same layout with no reconfiguration.
+///
+/// "Beside the executable" needs adjusting once the app is bundled, though, and getting
+/// this wrong would put a user's notes somewhere they would never find them:
+///
+/// - **macOS**: a bundled app lives at `QuickNote.app/Contents/MacOS/quick-note`, so the
+///   directory beside the binary is *inside* the bundle. Notes written there would be
+///   destroyed by the next update and invisible in Finder. Step out to where the `.app`
+///   itself sits.
+/// - **Linux AppImage**: the binary runs from a temporary mount that disappears on exit.
+///   `$APPIMAGE` holds the real path of the AppImage file, which is what the user
+///   actually copied onto their drive.
 pub fn base_dir() -> PathBuf {
-    std::env::current_exe()
+    // An AppImage's own path, when we are running as one.
+    #[cfg(target_os = "linux")]
+    if let Ok(appimage) = std::env::var("APPIMAGE") {
+        if let Some(parent) = Path::new(&appimage).parent() {
+            return parent.to_path_buf();
+        }
+    }
+
+    let dir = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| PathBuf::from("."))
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    #[cfg(target_os = "macos")]
+    if dir.ends_with("Contents/MacOS") {
+        // .../QuickNote.app/Contents/MacOS -> .../  (three levels out)
+        if let Some(beside_bundle) = dir.parent().and_then(Path::parent).and_then(Path::parent) {
+            return beside_bundle.to_path_buf();
+        }
+    }
+
+    dir
 }
 
 /// Turn a relative path from the UI into an absolute path guaranteed to sit inside

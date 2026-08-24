@@ -1,7 +1,14 @@
-"""Generate src-tauri/icons/icon.ico.
+"""Generate the full icon set in src-tauri/icons/.
 
-Kept in the repo so the icon is reproducible rather than an opaque binary blob nobody
-can regenerate. Pure standard library: no Pillow, no build-time dependency.
+Kept in the repo so the icons are reproducible rather than opaque binaries nobody can
+regenerate. Pure standard library: no Pillow, and no dependency on `tauri icon` (which
+would need the Node toolchain just to redraw a square).
+
+Produces what tauri.conf.json's bundle.icon list refers to, across all three platforms:
+
+    32x32.png  128x128.png  128x128@2x.png  icon.png   (Linux, Windows, general)
+    icon.ico                                           (Windows)
+    icon.icns                                          (macOS)
 
 Run from the repo root:  python tools/make-icon.py
 """
@@ -11,10 +18,35 @@ import os
 import struct
 import zlib
 
-SIZES = [16, 32, 48, 64, 128, 256]
+OUT_DIR = os.path.join("src-tauri", "icons")
+
 PAGE = (74, 99, 231)  # indigo, matching --accent in the UI
 LINE = (255, 255, 255)
-OUT = os.path.join("src-tauri", "icons", "icon.ico")
+
+# Sizes rendered once and reused by every container below.
+SIZES = [32, 64, 128, 256, 512]
+
+# Plain PNG files Tauri and Linux packaging expect, as (filename, pixel size).
+PNG_FILES = [
+    ("32x32.png", 32),
+    ("128x128.png", 128),
+    ("128x128@2x.png", 256),
+    ("icon.png", 512),
+]
+
+ICO_SIZES = [32, 64, 128, 256]
+
+# macOS icon types, as (OSType, pixel size). All PNG-encoded, which macOS has accepted
+# since 10.7.
+ICNS_ENTRIES = [
+    (b"ic11", 32),   # 16pt @2x
+    (b"ic12", 64),   # 32pt @2x
+    (b"ic07", 128),  # 128pt
+    (b"ic08", 256),  # 256pt
+    (b"ic13", 256),  # 128pt @2x
+    (b"ic09", 512),  # 512pt
+    (b"ic14", 512),  # 256pt @2x
+]
 
 
 def rounded_rect_coverage(px, py, cx, cy, half_w, half_h, radius):
@@ -26,8 +58,7 @@ def rounded_rect_coverage(px, py, cx, cy, half_w, half_h, radius):
     dy = abs(py - cy) - (half_h - radius)
     outside = math.hypot(max(dx, 0.0), max(dy, 0.0))
     inside = min(max(dx, dy), 0.0)
-    distance = outside + inside - radius
-    return min(max(0.5 - distance, 0.0), 1.0)
+    return min(max(0.5 - (outside + inside - radius), 0.0), 1.0)
 
 
 def over(dst, src, alpha):
@@ -36,6 +67,7 @@ def over(dst, src, alpha):
 
 
 def render(size):
+    """Draw the icon at `size` and return rows of RGBA tuples."""
     s = float(size)
     margin = s * 0.09
     half = (s - 2 * margin) / 2.0
@@ -65,10 +97,14 @@ def render(size):
 
             rgb = PAGE
             for left, top, right in bars:
-                bar_cx = (left + right) / 2.0
-                bar_cy = top + bar_h / 2.0
                 a = rounded_rect_coverage(
-                    px, py, bar_cx, bar_cy, (right - left) / 2.0, bar_h / 2.0, bar_r
+                    px,
+                    py,
+                    (left + right) / 2.0,
+                    top + bar_h / 2.0,
+                    (right - left) / 2.0,
+                    bar_h / 2.0,
+                    bar_r,
                 )
                 if a > 0.0:
                     rgb = over(rgb, LINE, a)
@@ -99,27 +135,53 @@ def to_png(size, rows):
     )
 
 
-def main():
-    images = [(size, to_png(size, render(size))) for size in SIZES]
-
-    header = struct.pack("<HHH", 0, 1, len(images))
-    offset = len(header) + 16 * len(images)
+def build_ico(pngs):
+    """Windows .ico: a directory of PNG-encoded images."""
+    header = struct.pack("<HHH", 0, 1, len(ICO_SIZES))
+    offset = len(header) + 16 * len(ICO_SIZES)
     entries, blobs = [], []
 
-    for size, png in images:
+    for size in ICO_SIZES:
+        png = pngs[size]
         # 0 means 256 in the ICO directory format.
         dim = 0 if size >= 256 else size
-        entries.append(
-            struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(png), offset)
-        )
+        entries.append(struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(png), offset))
         blobs.append(png)
         offset += len(png)
 
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "wb") as fh:
-        fh.write(header + b"".join(entries) + b"".join(blobs))
+    return header + b"".join(entries) + b"".join(blobs)
 
-    print("wrote {} ({} bytes, sizes {})".format(OUT, offset, SIZES))
+
+def build_icns(pngs):
+    """macOS .icns: a length-prefixed container of typed, PNG-encoded entries."""
+    body = b"".join(
+        ostype + struct.pack(">I", len(pngs[size]) + 8) + pngs[size]
+        for ostype, size in ICNS_ENTRIES
+    )
+    return b"icns" + struct.pack(">I", len(body) + 8) + body
+
+
+def main():
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    print("rendering...")
+    pngs = {size: to_png(size, render(size)) for size in SIZES}
+
+    written = []
+    for name, size in PNG_FILES:
+        path = os.path.join(OUT_DIR, name)
+        with open(path, "wb") as fh:
+            fh.write(pngs[size])
+        written.append((name, len(pngs[size])))
+
+    for name, data in (("icon.ico", build_ico(pngs)), ("icon.icns", build_icns(pngs))):
+        with open(os.path.join(OUT_DIR, name), "wb") as fh:
+            fh.write(data)
+        written.append((name, len(data)))
+
+    for name, size in written:
+        print("  {:<16} {:>8} bytes".format(name, size))
+    print("wrote {} files to {}".format(len(written), OUT_DIR))
 
 
 if __name__ == "__main__":

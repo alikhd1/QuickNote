@@ -1,21 +1,32 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// The bundle goes to dist-web/, not the usual dist/: dist/ already holds the built
-// QuickNote.exe and is referenced by build.ps1 and the README.
-export default defineConfig({
+// @ts-expect-error process is a nodejs global
+const host = process.env.TAURI_DEV_HOST;
+
+// https://vite.dev/config/
+export default defineConfig(async () => ({
   plugins: [react()],
-  // Tauri prints its own build output; do not wipe it.
+
+  // Vite options tailored for Tauri development, applied in `tauri dev` / `tauri build`
+  //
+  // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
+  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
     strictPort: true,
+    host: host || false,
+    hmr: host
+      ? {
+          protocol: "ws",
+          host,
+          port: 1421,
+        }
+      : undefined,
+    watch: {
+      // 3. tell Vite to ignore watching `src-tauri`
+      ignored: ["**/src-tauri/**"],
+    },
   },
-  build: {
-    outDir: "dist-web",
-    emptyOutDir: true,
-    // WebView2 is evergreen Chromium, so there is no old browser to support.
-    target: "chrome110",
-    sourcemap: false,
-  },
-});
+}));

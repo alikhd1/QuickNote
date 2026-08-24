@@ -5,6 +5,12 @@ description = "Portable note app that lives on your flash drive"
 edition = "2021"
 rust-version = "1.77"
 
+# Tauri v2 layout: the app lives in a library so a mobile target can call run()
+# directly, with main.rs as a thin desktop entry point.
+[lib]
+name = "quick_note_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

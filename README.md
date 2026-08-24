@@ -36,6 +36,15 @@ E:\QuickNote\
 
 Click the path at the bottom of the sidebar to open the notes folder in Explorer.
 
+### On macOS and Linux
+
+The same idea, with one adjustment each. A macOS app is a bundle, so the executable
+sits inside `QuickNote.app/Contents/MacOS/`; notes go beside the `.app` itself rather
+than inside it, where they would be invisible in Finder and wiped by the next update. A
+Linux AppImage runs from a temporary mount that disappears on exit, so notes go beside
+the `.AppImage` file. Either way, the folder you can see is the folder your notes are
+in.
+
 ### Auto-save
 
 There is no save button. Typing stops for 600 ms and the note is written; it is also
@@ -114,54 +123,94 @@ fair trade for inline thumbnails.
 
 Needs:
 
-- Rust (`x86_64-pc-windows-msvc`) and Visual Studio Build Tools with the VC++ x64
-  toolset and a Windows SDK
-- Node 18+ and npm, for the React/TypeScript frontend
+- Rust (stable) and a C toolchain for your platform. On Windows that means Visual
+  Studio Build Tools with the VC++ x64 workload and a Windows SDK.
+- Node 24 and npm.
+- On Linux: `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev`
 
-```powershell
-.\build.ps1
+```bash
+npm install
+npm run build                                  # type-check and bundle the UI to dist/
+cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
 
-That installs frontend dependencies if needed, type-checks and bundles the UI to
-`dist-web\`, compiles the Rust binary with that bundle embedded, and leaves
-`dist\QuickNote.exe`.
+The portable binary lands at `src-tauri/target/release/quick-note[.exe]`. That is the
+one to put on a drive.
 
-Note that the build machine needs Node, but **the flash drive does not**. The bundle is
-embedded in the binary, so what ships is still a single self-contained exe with no
-runtime dependencies beyond WebView2.
+Run `npm run build` before `cargo build`, not after: the frontend is embedded into the
+binary at compile time, so cargo fails outright if `dist/` is not there yet, and builds
+a stale UI into the binary if it is out of date.
 
-Individual steps, if you want them separately:
+To produce the installers as well, use the Tauri CLI instead — it runs the frontend
+build itself and then bundles:
 
-```powershell
-npm install          # once
-npm run typecheck    # tsc --noEmit, no bundle
-npm run build        # type-check + bundle to dist-web\
-cd src-tauri; cargo build --release
+```bash
+npm run tauri build       # binary + installers under src-tauri/target/release/bundle/
 ```
 
-Rust tests:
+Useful individual commands:
 
-```powershell
-cd src-tauri; cargo test
+```bash
+npm run dev          # Vite alone, on port 1420
+npm run tauri dev    # the real window, with hot reload
+npm run typecheck    # tsc --noEmit
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-They cover the parts worth being sure about: atomic writes and copies leaving no partial
-files, the path guard refusing to escape the notes folder, attachments not leaking into
-the note list, and link-import handling multi-byte text and unreachable paths.
+The Rust tests cover the parts worth being sure about: atomic writes and copies leaving
+no partial files, the path guard refusing to escape the notes folder, attachments not
+leaking into the note list, and link-import handling multi-byte text and unreachable
+paths.
 
-Regenerate the icon after changing `tools/make-icon.py`:
+Regenerate the icons after changing `tools/make-icon.py`:
 
-```powershell
-python tools\make-icon.py
+```bash
+python tools/make-icon.py
 ```
+
+It writes the PNG set, the Windows `.ico` and the macOS `.icns` from one drawing, with
+no dependency on Pillow or on `tauri icon`.
 
 ### Development
 
-`npm run tauri dev` gives hot reload against a Vite dev server on port 1420. One caveat:
-the production `csp` in `tauri.conf.json` sets `script-src 'self'`, and React's dev-mode
-refresh injects an inline script that this blocks. If dev mode comes up blank, relax the
-`csp` field temporarily — and put it back before building a release, since that strict
-policy is part of why note content can never execute.
+`npm run tauri dev` gives hot reload. One caveat: the production `csp` in
+`tauri.conf.json` sets `script-src 'self'`, and React's dev-mode refresh injects an
+inline script that this blocks. If dev mode comes up blank, relax the `csp` field
+temporarily — and put it back before building a release, since that strict policy is
+part of why note content can never execute.
+
+---
+
+## CI and releases
+
+Three workflows under `.github/workflows/`:
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| `ci.yml` | push to `main`, PRs | Type-check, build the frontend, `cargo check` and `cargo test` on Windows, macOS and Linux |
+| `build.yml` | manual (Actions tab) | Cross-platform installers plus portable binaries as downloadable artifacts; optionally drafts a release |
+| `release.yml` | pushing a `v*` tag | Builds every platform and publishes a GitHub release |
+
+CI runs on all three platforms deliberately. The notes folder is located differently on
+each — a macOS `.app` bundle and a Linux AppImage both need special handling — and that
+code only ever gets compiled in CI.
+
+To cut a release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+The release gets the installers for every platform, plus `QuickNote-portable.exe` for
+Windows. macOS and Linux already ship portable forms — the `.app` inside the `.dmg`, and
+the `.AppImage` — so they need no separate upload.
+
+Both `ci.yml` and `release.yml` use `npm ci`, which requires `package-lock.json` to be
+committed. Run `npm install` once and commit the lockfile, or CI will fail on the first
+run.
+
+Nothing here is code-signed. Windows SmartScreen and macOS Gatekeeper will warn about
+the downloads until certificates are added.
 
 ---
 
@@ -175,8 +224,9 @@ src/                        React + TypeScript frontend
   hooks/useAutoSave.ts      debounced save and filename settling
   components/               Sidebar, Toolbar, Preview, Dialogs
 src-tauri/src/
-  main.rs       entry point, WebView2 redirection, command registration
-  paths.rs      exe-relative root, slugs, filename cleaning, traversal guard
+  main.rs       thin desktop entry point
+  lib.rs        run(): WebView2 redirection, plugins, command registration
+  paths.rs      where the notes root lives, slugs, filename cleaning, traversal guard
   atomic.rs     temp + fsync + rename, for both writes and copies
   store.rs      groups and notes over the filesystem
   files.rs      attachments, and pulling external links onto the drive
@@ -207,8 +257,16 @@ sandbox directory instead.
 
 ## Known limitation
 
-The exe needs the **WebView2 runtime** on the host PC. It ships with Windows 11 and
-arrives with Edge on Windows 10, so in practice it is everywhere — but a locked-down or
-very old machine could lack it, and QuickNote will not start there. That is inherent to
-Tauri, or to any WebView2-based app; the fix on such a machine is installing the WebView2
-evergreen runtime.
+QuickNote renders through the host's own webview rather than shipping one, which is why
+the binary is small enough to live on a drive. The cost is a runtime dependency:
+
+- **Windows** needs the **WebView2 runtime**. It ships with Windows 11 and arrives with
+  Edge on Windows 10, so in practice it is everywhere — but a locked-down or very old
+  machine could lack it, and QuickNote will not start there. The fix is installing the
+  WebView2 evergreen runtime.
+- **macOS** uses WKWebView, which is always present.
+- **Linux** needs `webkit2gtk` 4.1. The AppImage does not bundle it, so a very minimal
+  distribution may need it installed.
+
+The Windows and macOS behaviour has been reasoned about carefully; the Linux path is
+built and tested by CI but has not been used in anger.
