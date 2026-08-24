@@ -46,6 +46,8 @@ export interface SearchHit {
 export interface Startup {
   root: string;
   error: string | null;
+  /** "macos" | "windows" | "linux" */
+  os: string;
 }
 
 /** `commands::AttachResult` */

@@ -399,6 +399,9 @@ export default function App() {
         const info = await api.startupStatus();
         if (cancelled) return;
         setStartup(info);
+        // Only macOS draws window buttons over the content; the layout reserves room
+        // for them, and must not reserve it anywhere else.
+        document.documentElement.dataset.os = info.os;
         if (info.error) {
           setBanner(
             `The notes folder could not be prepared: ${info.error} — the drive may be write-protected.`,

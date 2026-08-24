@@ -16,7 +16,9 @@ export function FolderList(props: FolderListProps) {
 
   return (
     <aside className="folders">
-      <div className="column-head">Folders</div>
+      <div className="column-head" data-tauri-drag-region>
+        Folders
+      </div>
 
       <nav className="folders-scroll" aria-label="Folders">
         {groups.length === 0 ? (

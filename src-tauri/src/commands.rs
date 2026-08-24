@@ -19,6 +19,9 @@ pub struct Startup {
     pub root: String,
     /// Set when the notes folder could not be prepared, e.g. a write-protected drive.
     pub error: Option<String>,
+    /// "macos", "windows" or "linux". The UI reserves room for the macOS window
+    /// buttons, which are drawn over the content when the title bar is an overlay.
+    pub os: String,
 }
 
 #[tauri::command]
@@ -26,6 +29,7 @@ pub fn startup_status(state: State<AppState>) -> Startup {
     Startup {
         root: state.root.display().to_string(),
         error: state.startup_error.clone(),
+        os: std::env::consts::OS.to_string(),
     }
 }
 

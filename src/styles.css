@@ -111,7 +111,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 46px;
+  height: 52px;
   flex: none;
   padding: 0 14px;
   font-size: 11px;
@@ -396,11 +396,24 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 46px;
+  height: 52px;
   flex: none;
   padding: 0 14px;
   background: var(--editor-bg);
   border-bottom: 1px solid var(--hairline);
+}
+
+/* macOS draws the window buttons over the content when the title bar is an overlay,
+   so the first column's top row has to step aside for them. Reserved on macOS alone:
+   nowhere else has buttons there, and the gap would just look like a mistake. */
+[data-os="macos"] .folders .column-head {
+  padding-left: 82px;
+}
+
+/* The top row doubles as the window's drag handle, but only where it is not a
+   control -- Tauri ignores the region when the press lands on a child. */
+[data-tauri-drag-region] {
+  cursor: default;
 }
 
 .crumb {

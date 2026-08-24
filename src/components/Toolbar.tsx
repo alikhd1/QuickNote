@@ -35,7 +35,7 @@ export function Toolbar(props: ToolbarProps) {
   const disabled = note === null;
 
   return (
-    <header className="toolbar">
+    <header className="toolbar" data-tauri-drag-region>
       {/* Composing lives in the note list header, where the list it adds to is.
           A second button here only crowded the toolbar. */}
       <span className="crumb">{note ? note.title : ""}</span>

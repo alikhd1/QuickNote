@@ -56,7 +56,7 @@ export function NoteList(props: NoteListProps) {
 
   return (
     <section className="notes-col">
-      <div className="column-head notes-head">
+      <div className="column-head notes-head" data-tauri-drag-region>
         <input
           ref={searchRef}
           className="search"
