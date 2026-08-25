@@ -429,18 +429,29 @@ fn title_and_preview(path: &Path) -> (String, String) {
     if let Ok(file) = File::open(path) {
         let _ = file.take(TITLE_HEAD_BYTES).read_to_end(&mut buf);
     }
-    let head = String::from_utf8_lossy(&buf);
+    let (title, preview) = split_head(&String::from_utf8_lossy(&buf));
+
+    // A note with no text at all still needs a name in the list.
+    let title = title.unwrap_or_else(|| {
+        path.file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Untitled".into())
+    });
+    (title, preview)
+}
+
+/// Split the head of a note into its title and a preview of the body.
+///
+/// Kept separate from reading the file so the rule can be tested directly rather than
+/// through a parallel copy of it.
+fn split_head(head: &str) -> (Option<String>, String) {
     let mut lines = head.lines().map(str::trim).filter(|line| !line.is_empty());
 
     let title = lines
         .next()
         .map(without_heading_marks)
         .filter(|t| !t.is_empty())
-        .unwrap_or_else(|| {
-            path.file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "Untitled".into())
-        });
+        .map(|t| t.chars().take(MAX_TITLE_CHARS).collect::<String>());
 
     let preview: String = lines
         .map(without_heading_marks)
@@ -450,26 +461,12 @@ fn title_and_preview(path: &Path) -> (String, String) {
         .take(MAX_PREVIEW_CHARS)
         .collect();
 
-    (title.chars().take(MAX_TITLE_CHARS).collect(), preview)
+    (title, preview)
 }
 
 fn without_heading_marks(line: &str) -> String {
     let stripped = line.trim_start_matches('#').trim();
     if stripped.is_empty() { line.to_string() } else { stripped.to_string() }
-}
-
-/// The first `# heading`, else the first non-empty line.
-pub fn title_of(content: &str) -> Option<String> {
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        let text = trimmed.trim_start_matches('#').trim();
-        let text = if text.is_empty() { trimmed } else { text };
-        return Some(text.chars().take(MAX_TITLE_CHARS).collect());
-    }
-    None
 }
 
 fn first_line_of(content: &str) -> String {
@@ -766,9 +763,19 @@ mod tests {
 
     #[test]
     fn title_prefers_the_heading() {
-        assert_eq!(title_of("# Real Title\n\nbody").unwrap(), "Real Title");
-        assert_eq!(title_of("\n\nplain first line").unwrap(), "plain first line");
-        assert!(title_of("   \n  \n").is_none());
+        assert_eq!(split_head("# Real Title\n\nbody").0.unwrap(), "Real Title");
+        assert_eq!(split_head("\n\nplain first line").0.unwrap(), "plain first line");
+        assert!(split_head("   \n  \n").0.is_none());
+    }
+
+    #[test]
+    fn preview_is_the_body_after_the_title() {
+        let (title, preview) = split_head("# Meeting\n\nDiscussed the budget.\nAnd the timeline.");
+        assert_eq!(title.unwrap(), "Meeting");
+        assert_eq!(preview, "Discussed the budget. And the timeline.");
+
+        // A note that is nothing but a title has no preview to show.
+        assert_eq!(split_head("# Just a title").1, "");
     }
 
     #[test]
